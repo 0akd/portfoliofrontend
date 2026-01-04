@@ -1,19 +1,34 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Todo from '../components/Todo.astro';
 ---
 
 <Layout title="Astro + Turso Todo">
-	<main>
-		<Todo />
-	</main>
+  <main>
+    <a href="/personal/todo" class="todo-btn">
+      Go to Personal Todo
+    </a>
+  </main>
 </Layout>
 
 <style>
-	main {
-		width: 100%;
-		display: flex;
-		justify-content: center;
-		padding: 1rem;
-	}
+  main {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .todo-btn {
+    padding: 0.75rem 1.5rem;
+    background-color: #2563eb;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+  }
+
+  .todo-btn:hover {
+    background-color: #1d4ed8;
+  }
 </style>

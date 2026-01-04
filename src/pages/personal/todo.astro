@@ -1,0 +1,581 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="My Tracker">
+  <main>
+    <div class="todo-container">
+      
+      <div class="header">
+        <div class="title-group">
+          <h1>&#128640; My Tracker</h1>
+          <span class="badge" id="countBadge">0 Tasks</span>
+        </div>
+        <button id="resetBtn" class="btn-reset">Start New Session</button>
+      </div>
+
+      <div class="input-card">
+        <div class="input-row">
+          <input type="text" id="taskInput" placeholder="What needs to be done?" />
+          <button id="posBtn" class="btn-icon" title="Insert Position">&#128205;</button> 
+        </div>
+        <div class="input-row">
+          <input type="text" id="categoryInput" placeholder="Categories (e.g. Work)" />
+          <button id="addBtn" class="btn-add">Add Task</button>
+        </div>
+        <div id="posIndicator" class="pos-badge hidden">
+          Insert above: <b id="posTargetName"></b><span id="clearPos" class="close-x">&times;</span>
+        </div>
+      </div>
+
+      <div class="list-header">
+        <span class="col-task">Task List</span>
+        <div class="col-history" id="historyHeaders"></div>
+      </div>
+
+      <ul id="taskList" class="task-list"></ul>
+    </div>
+
+    <dialog id="detailModal" class="modal wide-modal">
+      <div class="modal-wrapper"> 
+        <div class="modal-header">
+          <h3 id="modalHeaderTitle">Task Details</h3>
+          <button onclick="closeModal()" class="btn-close-x">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+          <div id="viewModeContainer" class="mode-container">
+              <h2 id="viewTitle" class="view-title-text"></h2>
+              
+              <div class="section">
+                  <label>&#128230; Required Items</label> 
+                  <div id="viewItemsList" class="view-list-container">
+                      <span class="empty-text">No items listed.</span>
+                  </div>
+              </div>
+
+              <div class="section">
+                  <label>&#128221; Procedure</label> 
+                  <div id="viewStepsList" class="view-steps-container">
+                      <span class="empty-text">No procedure defined.</span>
+                  </div>
+              </div>
+          </div>
+
+          <div id="editModeContainer" class="mode-container hidden">
+              <div class="section">
+                  <label>Task Title</label>
+                  <input type="text" id="modalTaskTitle" class="modal-input-title" placeholder="Task Name..." />
+              </div>
+
+              <div class="section">
+                <label>Position</label>
+                <button id="moveTaskBtn" class="btn-dashed" style="text-align:left;">&#128205; Move Task Location...</button>
+              </div>
+
+              <div class="section">
+                  <label>&#128230; Edit Items</label>
+                  <div class="items-editor">
+                      <div id="editItemsList" class="tags-container"></div>
+                      <div class="input-group-small">
+                          <input type="text" id="itemInput" class="item-input" placeholder="Type item name & enter..." />
+                          <button id="addItemBtn" class="btn-action-small">Add</button>
+                      </div>
+                  </div>
+              </div>
+
+              <div class="section">
+                  <label>&#128221; Edit Procedure</label>
+                  <div id="editStepsList" class="steps-editor"></div>
+                  <button id="addStepBtn" class="btn-dashed">+ Add Step</button>
+              </div>
+
+              <div class="save-row">
+                  <button id="saveDetailBtn" class="btn-save">Save Changes</button>
+              </div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="posModal" class="modal">
+      <div class="modal-wrapper">
+        <h3 id="posModalTitle">Select Position</h3>
+        <div id="posList" class="pos-list"></div>
+        <button onclick="document.getElementById('posModal').close()" class="btn-cancel">Cancel</button>
+      </div>
+    </dialog>
+  </main>
+</Layout>
+
+<script>
+const API_URL = "https://todo-backend.atrikumar31.workers.dev/todos";
+  
+  // State
+  let todos = [];
+  let sessions = [];
+  let targetPriority = null; 
+  
+  // Modal State
+  let currentId = null;
+  let tempItems = [];
+  let tempSteps = [];
+  let isMoveMode = false;
+
+  // --- CORE FUNCTIONS ---
+  async function loadTasks() {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      todos = data.tasks || [];
+      sessions = data.sessions || [];
+      render();
+    } catch(e) { console.error(e); }
+  }
+
+  function render() {
+    const list = document.getElementById('taskList');
+    const headerRow = document.getElementById('historyHeaders');
+    document.getElementById('countBadge').innerText = `${todos.length} Tasks`;
+    list.innerHTML = '';
+
+    // History Headers
+    const visibleSessions = [...sessions].reverse().slice(-6); 
+    let headerHtml = '';
+    visibleSessions.forEach(s => {
+      const d = new Date(s.timestamp);
+      headerHtml += `<div class="h-col-header">
+        <span>${d.toLocaleDateString('en-US',{weekday:'short'})}</span>
+        <small>${d.toLocaleTimeString('en-US',{hour:'numeric'})}</small>
+      </div>`;
+    });
+    headerHtml += `<div class="h-col-header active-header"><span>NOW</span><small>Live</small></div>`;
+    headerRow.innerHTML = headerHtml;
+
+    todos.forEach(t => createTaskElement(t, visibleSessions));
+  }
+
+  function createTaskElement(task, visibleSessions) {
+    const li = document.createElement('li');
+    li.className = `task-card ${task.completed ? 'done' : ''}`;
+
+    // Has Details Indicator?
+    const hasDetails = (task.requiredItems && task.requiredItems.length > 0) || (task.procedure && task.procedure.length > 0);
+    const detailIndicator = hasDetails ? '<span class="icon-indicator" title="Has Details">&#128221;</span>' : '';
+
+    // 1. Checkbox
+    const cbContainer = document.createElement('div');
+    cbContainer.className = 'cb-container';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; 
+    cb.className = 'big-cb';
+    cb.checked = task.completed;
+    cb.onclick = (e) => { 
+        e.stopPropagation(); 
+        toggle(task.id, task.completed); 
+    };
+    cbContainer.appendChild(cb);
+
+    // 2. Title Section
+    const titleSection = document.createElement('div');
+    titleSection.className = 'title-section';
+    
+    let catHtml = '';
+    try {
+        let cats = task.category;
+        if (typeof cats === 'string') cats = JSON.parse(cats);
+        if (Array.isArray(cats)) cats.forEach(c => catHtml += `<span class="chip">${c}</span>`);
+    } catch (e) {}
+
+    titleSection.innerHTML = `
+        <div class="task-main-text">
+            <span class="task-title">${task.text}</span>
+            ${detailIndicator}
+        </div>
+        <div class="task-meta">${catHtml}</div>
+    `;
+    titleSection.onclick = () => openModal(task.id, 'view');
+
+    // 3. History Grid
+    const historyGrid = document.createElement('div');
+    historyGrid.className = 'history-grid';
+    
+    visibleSessions.forEach(s => {
+      const log = task.history.find(h => h.sessionId === s.sessionId);
+      const isDone = log ? log.completed : false;
+      
+      const cell = document.createElement('div');
+      cell.className = 'h-cell';
+      const dayLabel = document.createElement('span');
+      dayLabel.className = 'h-day-label';
+      dayLabel.innerText = new Date(s.timestamp).toLocaleDateString('en-US', {weekday:'short'});
+      const box = document.createElement('div');
+      box.className = `h-box ${isDone?'h-done':'h-miss'}`;
+      box.title = new Date(s.timestamp).toLocaleString();
+      cell.append(dayLabel, box);
+      historyGrid.appendChild(cell);
+    });
+
+    const liveCell = document.createElement('div');
+    liveCell.className = 'h-cell';
+    const liveLabel = document.createElement('span');
+    liveLabel.className = 'h-day-label active-label';
+    liveLabel.innerText = 'Now';
+    const liveBox = document.createElement('div');
+    liveBox.className = `h-box ${task.completed?'h-live-done':'h-live-pending'}`;
+    liveBox.innerHTML = "&bull;"; 
+    liveCell.append(liveLabel, liveBox);
+    historyGrid.appendChild(liveCell);
+
+    // 4. Dropdown Menu
+    const dropdown = document.createElement('div');
+    dropdown.className = 'dropdown';
+    dropdown.innerHTML = `
+        <button class="btn-icon btn-more" onclick="toggleDropdown(event, ${task.id})">&#8942;</button> 
+        <div id="dropdown-${task.id}" class="dropdown-content">
+            <div onclick="openModal(${task.id}, 'edit')">&#9999; Edit Details</div> 
+            <div onclick="remove(${task.id})" class="danger-text">&#128465; Delete</div> 
+        </div>
+    `;
+
+    li.append(cbContainer, titleSection, dropdown, historyGrid);
+    document.getElementById('taskList').appendChild(li);
+  }
+
+  // --- DROPDOWN LOGIC ---
+  window.toggleDropdown = (e, id) => {
+      e.stopPropagation();
+      document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+      const dd = document.getElementById(`dropdown-${id}`);
+      if(dd) dd.classList.toggle('show');
+  };
+  window.onclick = (event) => {
+      if (!event.target.matches('.btn-more')) document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+  };
+
+  // --- MODAL LOGIC ---
+  function enableBackdropClose(dialogId) {
+    const dialog = document.getElementById(dialogId);
+    dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) dialog.close();
+    });
+  }
+  enableBackdropClose('detailModal');
+  enableBackdropClose('posModal');
+
+  window.openModal = (id, mode = 'view') => {
+    const task = todos.find(t => t.id === id);
+    if (!task) return;
+    currentId = id;
+
+    try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; }
+    try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; }
+
+    const viewContainer = document.getElementById('viewModeContainer');
+    const editContainer = document.getElementById('editModeContainer');
+    const headerTitle = document.getElementById('modalHeaderTitle');
+
+    if (mode === 'view') {
+        viewContainer.classList.remove('hidden');
+        editContainer.classList.add('hidden');
+        headerTitle.innerText = "Task Details";
+        document.getElementById('viewTitle').innerText = task.text;
+        
+        const vItems = document.getElementById('viewItemsList');
+        vItems.innerHTML = '';
+        if(tempItems.length === 0) vItems.innerHTML = '<span class="empty-text">No items listed.</span>';
+        else tempItems.forEach(i => vItems.innerHTML += `<span class="view-tag">${i}</span>`);
+
+        const vSteps = document.getElementById('viewStepsList');
+        vSteps.innerHTML = '';
+        if(tempSteps.length === 0) vSteps.innerHTML = '<span class="empty-text">No procedure defined.</span>';
+        else tempSteps.forEach((s, ix) => vSteps.innerHTML += `<div class="view-step-row"><span class="step-num">${ix+1}.</span><span>${s}</span></div>`);
+    } else {
+        viewContainer.classList.add('hidden');
+        editContainer.classList.remove('hidden');
+        headerTitle.innerText = "Edit Task";
+        document.getElementById('modalTaskTitle').value = task.text;
+        renderEditContent();
+    }
+    document.getElementById('detailModal').showModal();
+    document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+  };
+
+  window.closeModal = () => document.getElementById('detailModal').close();
+
+  // --- EDIT CONTENT RENDER ---
+  function renderEditContent() {
+    const list = document.getElementById('editItemsList');
+    list.innerHTML = '';
+    tempItems.forEach((item, idx) => {
+      const tag = document.createElement('span');
+      tag.className = 'edit-tag';
+      tag.innerHTML = `${item} <button onclick="deleteItem(${idx})">&times;</button>`;
+      list.appendChild(tag);
+    });
+
+    const stepList = document.getElementById('editStepsList');
+    stepList.innerHTML = '';
+    tempSteps.forEach((step, idx) => {
+      const row = document.createElement('div');
+      row.className = 'edit-step-row';
+      row.innerHTML = `
+        <span class="bullet">${idx+1}.</span>
+        <input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)">
+        <button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button> `;
+      stepList.appendChild(row);
+    });
+  }
+
+  // --- EDIT HANDLERS ---
+  const itemInput = document.getElementById('itemInput');
+  const addItemBtn = document.getElementById('addItemBtn');
+
+  function triggerAddItem() {
+    const val = itemInput.value.trim();
+    if(val) { tempItems.push(val); itemInput.value = ''; renderEditContent(); }
+  }
+  addItemBtn.onclick = triggerAddItem;
+  itemInput.onkeydown = (e) => { if (e.key === 'Enter') triggerAddItem(); };
+  window.deleteItem = (idx) => { tempItems.splice(idx, 1); renderEditContent(); };
+  document.getElementById('addStepBtn').onclick = () => { tempSteps.push(""); renderEditContent(); };
+  window.updateStep = (idx, val) => { tempSteps[idx] = val; };
+  window.deleteStep = (idx) => { tempSteps.splice(idx, 1); renderEditContent(); };
+
+  // --- SAVE ---
+  document.getElementById('saveDetailBtn').onclick = async () => {
+    const newTitle = document.getElementById('modalTaskTitle').value;
+    const cleanSteps = tempSteps.filter(s => s.trim() !== "");
+    await fetch(`${API_URL}/${currentId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text: newTitle, requiredItems: tempItems, procedure: cleanSteps })
+    });
+    closeModal();
+    loadTasks();
+  };
+
+  // --- STANDARD ACTIONS ---
+  async function addTask() {
+    const text = document.getElementById('taskInput').value;
+    const cat = document.getElementById('categoryInput').value.split(',').filter(c=>c.trim());
+    if(!text) return;
+    await fetch(API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text, category:cat, priority:targetPriority})});
+    document.getElementById('taskInput').value='';
+    document.getElementById('categoryInput').value='';
+    loadTasks();
+  }
+
+  async function toggle(id, s) {
+    await fetch(`${API_URL}/${id}/toggle`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:!s})});
+    loadTasks();
+  }
+
+  async function resetAll() {
+    if(confirm("Start new session?")) { await fetch(`${API_URL}/reset`, {method:'POST'}); loadTasks(); }
+  }
+
+  window.remove = async (id) => { if(confirm("Delete?")) { await fetch(`${API_URL}/${id}`, {method:'DELETE'}); loadTasks(); } }
+
+  document.getElementById('addBtn').onclick = addTask;
+  document.getElementById('resetBtn').onclick = resetAll;
+  loadTasks();
+
+  // --- POSITION LOGIC ---
+  const posBtn = document.getElementById('posBtn');
+  const moveTaskBtn = document.getElementById('moveTaskBtn');
+  const posModal = document.getElementById('posModal');
+  const posList = document.getElementById('posList');
+  
+  document.getElementById('clearPos').onclick = () => { targetPriority = null; document.getElementById('posIndicator').classList.add('hidden'); };
+  
+  function openPosModal(moveMode) {
+    isMoveMode = moveMode;
+    document.getElementById('posModalTitle').innerText = moveMode ? "Move Task Above..." : "Insert New Task Above...";
+    
+    posList.innerHTML = '';
+    todos.forEach(t => {
+      if (isMoveMode && t.id === currentId) return;
+      const d = document.createElement('div'); 
+      d.className='pos-item'; 
+      d.innerText = `&#11014; ${t.text}`; 
+      d.onclick = async () => {
+        if (isMoveMode) {
+            await fetch(`${API_URL}/${currentId}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ priority: t.priority }) 
+            });
+            posModal.close();
+            closeModal();
+            loadTasks();
+        } else {
+            targetPriority = t.priority; 
+            document.getElementById('posTargetName').innerText = t.text; 
+            document.getElementById('posIndicator').classList.remove('hidden'); 
+            posModal.close();
+        }
+      };
+      posList.appendChild(d);
+    });
+    posModal.showModal();
+  }
+
+  posBtn.onclick = () => openPosModal(false);
+  moveTaskBtn.onclick = () => openPosModal(true);
+
+</script>
+
+<style is:global>
+  /* GLOBAL VARS */
+  :root { --bg:#1e1e24; --card:#2b2b36; --accent:#7f5af0; --text:#fffffe; --sub:#94a1b2; --green:#2cb67d; --red:#ef4565; --border:#444; }
+  body { background:var(--bg); color:var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding:20px; }
+  .todo-container { max-width:900px; margin:0 auto; }
+  
+  /* HEADER & INPUTS */
+  .header { display:flex; justify-content:space-between; margin-bottom:20px; align-items:center; }
+  .btn-reset { background:var(--card); color:var(--accent); border:1px solid var(--accent); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; }
+  .input-card { background:var(--card); padding:15px; border-radius:12px; margin-bottom:20px; display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); }
+  .input-row { display:flex; gap:8px; }
+  input { flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:10px; color:white; border-radius:6px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  .btn-add { background:var(--accent); color:white; border:none; padding:0 20px; border-radius:6px; font-weight:bold; cursor:pointer; }
+  .btn-icon { background:rgba(255,255,255,0.05); border:none; width:32px; height:32px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .btn-icon:hover { background:rgba(255,255,255,0.1); }
+  
+  /* LIST STRUCTURE */
+  .list-header { display:flex; justify-content:space-between; padding:0 15px 5px; color:var(--sub); font-size:0.8rem; text-transform:uppercase; }
+  .col-history { display:flex; gap:6px; justify-content:flex-end; }
+  .task-list { list-style:none; padding:0; }
+  
+  .task-card { 
+    background:var(--card); 
+    margin-bottom:10px; 
+    border-radius:10px; 
+    padding:10px 15px; 
+    display:flex; 
+    align-items: center;
+    gap: 15px; 
+    transition: background 0.2s; 
+    flex-wrap: wrap; 
+  }
+  .task-card:hover { background:#323240; }
+
+  /* Left: Checkbox */
+  .cb-container { display:flex; align-items:center; flex-shrink: 0; }
+  .big-cb { width:20px; height:20px; accent-color:var(--green); cursor:pointer; }
+
+  /* Middle: Title */
+  .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width: 200px; }
+  .task-main-text { display:flex; align-items:center; gap:8px; }
+  .task-title { font-size:1rem; font-weight:500; line-height: 1.4; }
+  .task-meta { display:flex; gap:4px; margin-top:2px; }
+  .icon-indicator { font-size:0.9rem; color:var(--accent); }
+  .chip { font-size:0.65rem; background:rgba(255,255,255,0.1); padding:1px 6px; border-radius:4px; color:var(--sub); }
+
+  /* Right: History & Dropdown */
+  .history-grid { display:flex; gap:6px; align-items: center; }
+  
+  .h-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .h-day-label { font-size: 0.65rem; color: var(--sub); text-transform: uppercase; font-weight: bold; display: none; } 
+  .active-label { color: var(--accent); }
+
+  .h-box { width:24px; height:24px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .h-col-header { width:24px; text-align:center; display:flex; flex-direction:column; font-size:0.6rem; opacity:0.6; }
+  .active-header { opacity:1; color:var(--accent); }
+  .h-done { background:var(--green); color:black; }
+  .h-miss { background:#383842; }
+  .h-live-done { border:2px solid var(--green); color:var(--green); }
+  .h-live-pending { border:2px dashed #555; color:#555; }
+
+  /* Dropdown Styles */
+  .dropdown { position: relative; display: inline-block; margin-left: auto; flex-shrink: 0; }
+  .btn-more { font-weight:bold; font-size:1.2rem; color:var(--sub); }
+  .dropdown-content { display: none; position: absolute; right: 0; background-color: #23232b; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); z-index: 10; border-radius: 8px; border: 1px solid var(--border); overflow:hidden; }
+  .dropdown-content.show { display: block; }
+  .dropdown-content div { padding: 12px 16px; text-decoration: none; display: block; color: var(--text); cursor: pointer; font-size: 0.9rem; }
+  .dropdown-content div:hover { background-color: var(--accent); color: white; }
+  .danger-text:hover { background-color: var(--red) !important; color: white; }
+
+  /* --- MOBILE BREAKPOINT --- */
+  @media (max-width: 600px) {
+      .col-history { display: none; }
+      
+      /* FIX: Align Items to Top Row & Allow Title to Shrink */
+      .task-card { 
+        align-items: flex-start; /* Forces elements to the top */
+        padding-bottom: 15px;
+      }
+      
+      /* IMPORTANT: Let title fill space but not overflow */
+      .title-section { 
+        width: auto; 
+        flex: 1; 
+        min-width: 0; /* Crucial: Allows flex child to shrink below content size */
+        margin-right: 5px;
+      }
+
+      /* Adjust margins */
+      .cb-container { margin-top: 3px; }
+      .dropdown { margin-top: -5px; } 
+      
+      /* Force History Grid to Bottom Row */
+      .history-grid { 
+        display: flex !important; 
+        width: 100%; 
+        order: 10; 
+        justify-content: space-between; 
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px dashed rgba(255,255,255,0.1);
+      }
+      .h-day-label { display: block; }
+  }
+
+  /* --- MODAL STYLES --- */
+  .wide-modal { width:550px; max-width:95vw; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; padding:0; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
+  .wide-modal::backdrop { background:rgba(0,0,0,0.8); }
+  
+  .modal-wrapper { display: flex; flex-direction: column; height: 100%; }
+  .modal-header { padding:15px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); }
+  .modal-header h3 { margin:0; font-size:1.1rem; }
+  .btn-close-x { background:none; border:none; color:var(--sub); font-size:1.5rem; cursor:pointer; line-height:1; }
+  
+  .modal-body { padding:20px; max-height:70vh; overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
+  .section label { display:block; color:var(--sub); font-size:0.75rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; font-weight:bold; }
+  
+  .view-title-text { margin: 0 0 15px 0; color: var(--accent); font-size: 1.4rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .view-list-container { display:flex; flex-wrap:wrap; gap:8px; }
+  .view-tag { background:rgba(127,90,240,0.15); color:#dcb0f5; padding:6px 12px; border-radius:6px; font-size:0.95rem; border:1px solid rgba(127,90,240,0.3); }
+  .view-steps-container { display:flex; flex-direction:column; gap:10px; }
+  .view-step-row { display:flex; gap:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; }
+  .step-num { color:var(--sub); font-weight:bold; min-width:20px; }
+  .empty-text { font-style:italic; color:rgba(255,255,255,0.3); }
+
+  .modal-input-title { font-size:1.2rem; background:rgba(255,255,255,0.05); padding:10px; border:1px solid var(--border); width:100%; box-sizing:border-box; }
+  .items-editor { background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); }
+  .tags-container { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .edit-tag { background:var(--accent); color:white; padding:4px 10px; border-radius:15px; font-size:0.85rem; display:flex; align-items:center; gap:6px; }
+  .edit-tag button { background:none; border:none; color:rgba(255,255,255,0.7); cursor:pointer; font-size:1rem; padding:0; line-height:1; }
+  .input-group-small { display:flex; gap:5px; }
+  .item-input { background:transparent; border:none; border-bottom:1px solid var(--sub); border-radius:0; padding:4px; font-size:0.9rem; width:100%; }
+  .btn-action-small { background:var(--sub); color:black; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem; }
+  .steps-editor { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .edit-step-row { display:flex; align-items:center; gap:8px; }
+  .bullet { color:var(--sub); font-size:0.9rem; width:20px; }
+  .step-input { background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:6px; border-radius:4px; width:100%; color:white; }
+  .btn-del-step { background:none; border:none; cursor:pointer; opacity:0.5; font-size: 1.2rem; }
+  .btn-dashed { background:transparent; border:1px dashed var(--sub); color:var(--sub); padding:8px; border-radius:6px; cursor:pointer; width:100%; font-size:0.85rem; }
+
+  .save-row { padding-top:15px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
+  .btn-save { background:var(--green); color:black; border:none; padding:10px 25px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem; }
+  
+  .hidden { display:none !important; }
+  .pos-badge { color:#dcb0f5; background:rgba(127,90,240,0.2); padding:8px; border-radius:6px; display:flex; justify-content:space-between; }
+  #posModal { padding: 20px; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; }
+  #posModal::backdrop { background:rgba(0,0,0,0.8); }
+  .pos-list { max-height:200px; overflow-y:auto; margin:10px 0; }
+  .pos-item { padding:8px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .pos-item:hover { background:var(--accent); }
+  .btn-cancel { background:transparent; border:1px solid var(--border); color:var(--sub); padding:6px 12px; border-radius:6px; cursor:pointer; }
+</style>
