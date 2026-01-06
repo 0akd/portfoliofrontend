@@ -1,34 +1,286 @@
 ---
-import Layout from '../layouts/Layout.astro';
+/* src/pages/stats.astro */
 ---
 
-<Layout title="Astro + Turso Todo">
-  <main>
-    <a href="/personal/todo" class="todo-btn">
-      Go to Personal Todo
-    </a>
-  </main>
-</Layout>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="Todo Statistics" />
+    <title>Statistics</title>
+  </head>
+  <body>
+    <main>
+      <div class="stats-container">
+        
+        <div class="header">
+          <h1>&#128202; Completion Stats</h1>
+          <a href="/" class="btn-back">&larr; Back to Tracker</a>
+        </div>
+  
+        <div id="statsGrid" class="stats-grid">
+          <div class="loading-text">Loading statistics...</div>
+        </div>
+  
+      </div>
+    </main>
+
+    <script>
+      interface Task {
+        id: number;
+        text: string;
+        completed: boolean;
+        category: string; 
+      }
+   const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
+  const API_URL = `${BASE_URL}/todos`; 
+   
+    
+      async function loadStats() {
+        try {
+          const res = await fetch(API_URL);
+          const data = await res.json();
+          const tasks: Task[] = data.tasks || [];
+          processAndRender(tasks);
+        } catch (e) {
+          console.error(e);
+          document.getElementById('statsGrid')!.innerHTML = '<p class="error">Failed to load stats.</p>';
+        }
+      }
+    
+      function processAndRender(tasks: Task[]) {
+        const categories: Record<string, { total: number; completed: number }> = {};
+    
+        // 1. Group Data
+        tasks.forEach(t => {
+          // Normalize Category: Default to "Uncategorized" if empty
+          let catName = t.category ? t.category.trim() : "Uncategorized";
+          if(catName === "") catName = "Uncategorized";
+    
+          if (!categories[catName]) {
+            categories[catName] = { total: 0, completed: 0 };
+          }
+    
+          categories[catName].total++;
+          if (t.completed) categories[catName].completed++;
+        });
+    
+        // 2. Clear Grid
+        const grid = document.getElementById('statsGrid')!;
+        grid.innerHTML = '';
+    
+        const sortedKeys = Object.keys(categories).sort();
+    
+        if (sortedKeys.length === 0) {
+            grid.innerHTML = '<div class="empty-state">No tasks found to analyze.</div>';
+            return;
+        }
+    
+        // 3. Generate Cards
+        sortedKeys.forEach(cat => {
+          const data = categories[cat];
+          const percentage = Math.round((data.completed / data.total) * 100);
+          const card = createStatCard(cat, data.completed, data.total, percentage);
+          grid.appendChild(card);
+        });
+    
+        // 4. Trigger Animations (Next Frame)
+        requestAnimationFrame(() => {
+            document.querySelectorAll('.progress-circle-fill').forEach((el) => {
+                const target = el.getAttribute('data-offset');
+                (el as HTMLElement).style.strokeDashoffset = target || '0';
+            });
+        });
+      }
+    
+      function createStatCard(title: string, done: number, total: number, percent: number) {
+        const div = document.createElement('div');
+        div.className = 'stat-card';
+    
+        // SVG Configuration
+        const radius = 36;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (percent / 100) * circumference;
+        
+        // Determine Color based on completion
+        let colorClass = 'stroke-accent';
+        if(percent === 100) colorClass = 'stroke-green';
+        else if(percent === 0) colorClass = 'stroke-gray';
+    
+        div.innerHTML = `
+            <div class="chart-container">
+                <svg class="progress-ring" width="100" height="100">
+                    <circle
+                        class="progress-ring__circle stroke-bg"
+                        stroke-width="8"
+                        fill="transparent"
+                        r="${radius}"
+                        cx="50"
+                        cy="50"
+                    />
+                    <circle
+                        class="progress-ring__circle progress-circle-fill ${colorClass}"
+                        stroke-width="8"
+                        fill="transparent"
+                        r="${radius}"
+                        cx="50"
+                        cy="50"
+                        stroke-dasharray="${circumference} ${circumference}"
+                        stroke-dashoffset="${circumference}" 
+                        data-offset="${offset}"
+                    />
+                </svg>
+                <div class="percentage-label">
+                    <span class="p-num">${percent}%</span>
+                </div>
+            </div>
+            <div class="card-info">
+                <h3>${title}</h3>
+                <span class="fraction">${done} / ${total} Tasks Done</span>
+            </div>
+        `;
+        return div;
+      }
+    
+      // Init
+      loadStats();
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+      --bg: #1e1e24;
+      --card: #2b2b36;
+      --accent: #7f5af0;
+      --text: #fffffe;
+      --sub: #94a1b2;
+      --green: #2cb67d;
+      --red: #ef4565;
+      --border: #444;
+  }
+  
+  html {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      box-sizing: border-box;
+  }
+
+  body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+  }
+
+  *, *:before, *:after { box-sizing: inherit; }
+  .hidden { display: none !important; }
+</style>
 
 <style>
   main {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 1rem;
+      padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      color: var(--text);
   }
 
-  .todo-btn {
-    padding: 0.75rem 1.5rem;
-    background-color: #2563eb;
-    color: #ffffff;
-    text-decoration: none;
-    border-radius: 6px;
-    font-weight: 600;
-    transition: background-color 0.2s ease;
+  /* Header */
+  .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+  }
+  
+  h1 { margin: 0; font-size: 1.8rem; }
+  
+  .btn-back {
+      background: var(--card);
+      color: var(--sub);
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: 0.2s;
+      font-weight: 500;
+  }
+  .btn-back:hover {
+      border-color: var(--accent);
+      color: var(--text);
   }
 
-  .todo-btn:hover {
-    background-color: #1d4ed8;
+  /* Grid */
+  .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+  }
+
+  /* Card */
+  .stat-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+  }
+  .stat-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--accent);
+  }
+
+  .card-info { margin-top: 15px; }
+  .card-info h3 { margin: 0 0 5px 0; font-size: 1.1rem; color: var(--text); }
+  .fraction { color: var(--sub); font-size: 0.85rem; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 20px; }
+
+  /* SVG Circular Progress */
+  .chart-container {
+      position: relative;
+      width: 100px;
+      height: 100px;
+  }
+
+  .progress-ring__circle {
+      transition: stroke-dashoffset 1s ease-out;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+      stroke-linecap: round;
+  }
+
+  .stroke-bg { stroke: rgba(255,255,255,0.05); }
+  
+  .stroke-accent { stroke: var(--accent); }
+  .stroke-green { stroke: var(--green); }
+  .stroke-gray { stroke: var(--sub); }
+
+  .percentage-label {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+  }
+  
+  .p-num {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--text);
+  }
+
+  .loading-text, .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--sub);
+      margin-top: 40px;
   }
 </style>

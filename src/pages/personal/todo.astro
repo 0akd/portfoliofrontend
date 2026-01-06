@@ -11,8 +11,14 @@ import Layout from '../../layouts/Layout.astro';
           <h1>&#128640; My Tracker</h1>
           <span class="badge" id="countBadge">0 Tasks</span>
         </div>
-        <button id="resetBtn" class="btn-reset">Start New Session</button>
+        <div class="header-actions">
+           <button id="exportBtn" class="btn-subtle" title="Download Backup">&#11015; Export</button>
+           <button id="importBtn" class="btn-subtle" title="Restore Backup">&#11014; Import</button>
+           <button id="resetBtn" class="btn-reset">Start New Session</button>
+        </div>
       </div>
+      
+      <input type="file" id="fileInput" accept=".json" style="display:none" />
 
       <div class="input-card">
         <div class="input-row">
@@ -39,57 +45,115 @@ import Layout from '../../layouts/Layout.astro';
     <dialog id="detailModal" class="modal wide-modal">
       <div class="modal-wrapper"> 
         <div class="modal-header">
-          <h3 id="modalHeaderTitle">Task Details</h3>
+            <button id="btnHistoryEdit" class="btn-dashed hidden" style="margin-right:15px; padding:4px 10px; font-size:0.8rem;">&#9999; Edit Stats</button>
+          
+          <h3 id="modalHeaderTitle" style="flex:1; text-align:center;">Task Details</h3>
           <button onclick="closeModal()" class="btn-close-x">&times;</button>
         </div>
         
         <div class="modal-body">
+            
+            <div id="metricsPanel" class="metrics-panel">
+                <div class="metric-box left-metric">
+                    <label id="lblCounter">Counter</label>
+                    <div class="metric-controls">
+                        <button class="btn-circle" onclick="updateCounter(-1)">-</button>
+                        <span id="displayCounter" class="metric-value">0</span>
+                        <button class="btn-circle" onclick="updateCounter(1)">+</button>
+                    </div>
+                </div>
+                <div class="metric-box right-metric">
+                    <label id="lblTimer">Timer</label>
+                    <div class="timer-display" id="displayTimer">00:00:00</div>
+                    <div class="timer-controls">
+                        <button id="btnTimerToggle" class="btn-tiny" onclick="toggleTimer()">Start</button>
+                        <button class="btn-tiny btn-danger" onclick="resetTimer()">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="historyStatsDisplay" class="metrics-panel hidden">
+                <div class="metric-box left-metric">
+                    <label>Recorded Count</label>
+                    <span id="readOnlyCount" class="metric-value">0</span>
+                </div>
+                <div class="metric-box right-metric">
+                    <label>Recorded Time</label>
+                    <span id="readOnlyTime" class="timer-display">00:00:00</span>
+                </div>
+                <div class="metric-box" style="border-left:1px solid var(--border); padding-left:10px;">
+                     <label>Status</label>
+                     <span id="readOnlyStatus" class="chip">Pending</span>
+                </div>
+            </div>
+
+            <div id="historyMetricsPanel" class="metrics-panel hidden history-edit-mode">
+                 <div class="history-controls-row">
+                    <label class="cb-label">
+                        <input type="checkbox" id="histCompletedCb" class="big-cb">
+                        <span>Mark as Completed?</span>
+                    </label>
+                 </div>
+                 <div class="history-inputs-row">
+                     <div class="metric-box">
+                        <label>Count</label>
+                        <input type="number" id="histCounterInput" class="modal-num-input" />
+                     </div>
+                     <div class="metric-box">
+                        <label>Time (HH:MM:SS)</label>
+                        <input type="text" id="histTimerInput" class="modal-num-input" placeholder="00:00:00" />
+                     </div>
+                 </div>
+                 <button id="saveHistoryBtn" class="btn-save-small">Update History Record</button>
+            </div>
+
           <div id="viewModeContainer" class="mode-container">
               <h2 id="viewTitle" class="view-title-text"></h2>
               
               <div class="section">
                   <label>&#128230; Required Items</label> 
-                  <div id="viewItemsList" class="view-list-container">
-                      <span class="empty-text">No items listed.</span>
-                  </div>
+                  <div id="viewItemsList" class="view-list-container"></div>
               </div>
 
               <div class="section">
                   <label>&#128221; Procedure</label> 
-                  <div id="viewStepsList" class="view-steps-container">
-                      <span class="empty-text">No procedure defined.</span>
-                  </div>
+                  <div id="viewStepsList" class="view-steps-container"></div>
               </div>
           </div>
+<div id="editModeContainer" class="mode-container hidden">
+            <div class="section">
+                <label>Task Title</label>
+                <input type="text" id="modalTaskTitle" class="modal-input-title" placeholder="Task Name..." />
+            </div>
 
-          <div id="editModeContainer" class="mode-container hidden">
-              <div class="section">
-                  <label>Task Title</label>
-                  <input type="text" id="modalTaskTitle" class="modal-input-title" placeholder="Task Name..." />
-              </div>
-
-              <div class="section">
-                <label>Position</label>
+            <div class="section">
+                <label>Category</label>
+                <input type="text" id="modalCategoryInput" class="step-input" placeholder="e.g. Work" />
+            </div>
+            <div class="section">
+                <label>Unit Measurement</label>
+                <input type="text" id="modalUnitInput" class="step-input" placeholder="e.g. Pages, Reps, Minutes..." />
+            </div>
+            
+            <div class="section">
+              <label>Position</label>
                 <button id="moveTaskBtn" class="btn-dashed" style="text-align:left;">&#128205; Move Task Location...</button>
               </div>
-
               <div class="section">
                   <label>&#128230; Edit Items</label>
                   <div class="items-editor">
                       <div id="editItemsList" class="tags-container"></div>
                       <div class="input-group-small">
-                          <input type="text" id="itemInput" class="item-input" placeholder="Type item name & enter..." />
+                          <input type="text" id="itemInput" class="item-input" placeholder="New Item..." />
                           <button id="addItemBtn" class="btn-action-small">Add</button>
                       </div>
                   </div>
               </div>
-
               <div class="section">
                   <label>&#128221; Edit Procedure</label>
                   <div id="editStepsList" class="steps-editor"></div>
                   <button id="addStepBtn" class="btn-dashed">+ Add Step</button>
               </div>
-
               <div class="save-row">
                   <button id="saveDetailBtn" class="btn-save">Save Changes</button>
               </div>
@@ -109,20 +173,68 @@ import Layout from '../../layouts/Layout.astro';
 </Layout>
 
 <script>
-const API_URL = "https://todo-backend.atrikumar31.workers.dev/todos";
-  
-  // State
-  let todos = [];
-  let sessions = [];
-  let targetPriority = null; 
-  
-  // Modal State
-  let currentId = null;
-  let tempItems = [];
-  let tempSteps = [];
-  let isMoveMode = false;
+  // INTERFACES
+  interface HistoryLog {
+    sessionId: string;
+    completed: boolean;
+    snapshotCounter: number;
+    snapshotTimer: number;
+  }
+  interface Task {
+    id: number;
+    text: string;
+    completed: boolean;
+    priority: number;
+    category: string; // <-- Now strictly a string
+    requiredItems: string | string[]; 
+    procedure: string | string[];
+    activeCounter: number;
+    activeTimer: number;
+    history: HistoryLog[];
+    unit: string;
+  }
+  interface Session { sessionId: string; timestamp: number; }
 
-  // --- CORE FUNCTIONS ---
+  // ... (Global declarations, URL constants, State vars remain same) ...
+  // GLOBAL DECLARATIONS
+  declare global {
+    interface Window {
+      toggleDropdown: (e: Event, id: number) => void;
+      openModal: (id: number, mode?: 'view' | 'edit') => void;
+      openHistoryModal: (taskId: number, sessionId: string) => void;
+      closeModal: () => void;
+      deleteItem: (idx: number) => void;
+      updateStep: (idx: number, val: string) => void;
+      deleteStep: (idx: number) => void;
+      moveStep: (idx: number, dir: number) => void;
+      remove: (id: number) => void;
+      updateCounter: (delta: number) => void;
+      toggleTimer: () => void;
+      resetTimer: () => void;
+    }
+  }
+
+  const BASE_URL = "http://localhost:8787";
+  const API_URL = `${BASE_URL}/todos`; 
+  const HIST_API_URL = `${API_URL}/history`;
+  
+  // STATE
+  let todos: Task[] = [];
+  let sessions: Session[] = [];
+  let targetPriority: number | null = null; 
+  let currentId: number | null = null;
+  let editingSessionId: string | null = null; 
+  
+  // Edit State
+  let tempItems: string[] = [];
+  let tempSteps: string[] = [];
+  
+  // Timer State
+  let timerInterval: any = null;
+  let tempTimerSeconds = 0;
+  let tempCounterValue = 0;
+  let isTimerRunning = false;
+
   async function loadTasks() {
     try {
       const res = await fetch(API_URL);
@@ -134,100 +246,80 @@ const API_URL = "https://todo-backend.atrikumar31.workers.dev/todos";
   }
 
   function render() {
-    const list = document.getElementById('taskList');
-    const headerRow = document.getElementById('historyHeaders');
-    document.getElementById('countBadge').innerText = `${todos.length} Tasks`;
+    const list = document.getElementById('taskList') as HTMLElement;
+    const headerRow = document.getElementById('historyHeaders') as HTMLElement;
+    document.getElementById('countBadge')!.innerText = `${todos.length} Tasks`;
     list.innerHTML = '';
 
-    // History Headers
     const visibleSessions = [...sessions].reverse().slice(-6); 
+    
     let headerHtml = '';
     visibleSessions.forEach(s => {
       const d = new Date(s.timestamp);
-      headerHtml += `<div class="h-col-header">
-        <span>${d.toLocaleDateString('en-US',{weekday:'short'})}</span>
-        <small>${d.toLocaleTimeString('en-US',{hour:'numeric'})}</small>
-      </div>`;
+      headerHtml += `<div class="h-col-header"><span>${d.toLocaleDateString('en-US',{weekday:'short'})}</span></div>`;
     });
-    headerHtml += `<div class="h-col-header active-header"><span>NOW</span><small>Live</small></div>`;
+    headerHtml += `<div class="h-col-header active-header"><span>NOW</span></div>`;
     headerRow.innerHTML = headerHtml;
 
     todos.forEach(t => createTaskElement(t, visibleSessions));
   }
 
-  function createTaskElement(task, visibleSessions) {
+  function createTaskElement(task: Task, visibleSessions: Session[]) {
     const li = document.createElement('li');
     li.className = `task-card ${task.completed ? 'done' : ''}`;
 
-    // Has Details Indicator?
-    const hasDetails = (task.requiredItems && task.requiredItems.length > 0) || (task.procedure && task.procedure.length > 0);
+    const hasDetails = (task.requiredItems?.length > 0) || (task.procedure?.length > 0);
     const detailIndicator = hasDetails ? '<span class="icon-indicator" title="Has Details">&#128221;</span>' : '';
 
-    // 1. Checkbox
     const cbContainer = document.createElement('div');
     cbContainer.className = 'cb-container';
     const cb = document.createElement('input');
-    cb.type = 'checkbox'; 
-    cb.className = 'big-cb';
-    cb.checked = task.completed;
-    cb.onclick = (e) => { 
-        e.stopPropagation(); 
-        toggle(task.id, task.completed); 
-    };
+    cb.type = 'checkbox'; cb.className = 'big-cb'; cb.checked = task.completed;
+    cb.onclick = (e) => { e.stopPropagation(); toggle(task.id, task.completed); };
     cbContainer.appendChild(cb);
 
-    // 2. Title Section
     const titleSection = document.createElement('div');
     titleSection.className = 'title-section';
-    
+
+    // --- UPDATED: SIMPLE STRING RENDERING ---
     let catHtml = '';
-    try {
-        let cats = task.category;
-        if (typeof cats === 'string') cats = JSON.parse(cats);
-        if (Array.isArray(cats)) cats.forEach(c => catHtml += `<span class="chip">${c}</span>`);
-    } catch (e) {}
+    if (task.category && task.category.trim() !== '') {
+        catHtml = `<span class="chip">${task.category}</span>`;
+    }
+    // ----------------------------------------
 
     titleSection.innerHTML = `
-        <div class="task-main-text">
-            <span class="task-title">${task.text}</span>
-            ${detailIndicator}
-        </div>
+        <div class="task-main-text"><span class="task-title">${task.text}</span>${detailIndicator}</div>
         <div class="task-meta">${catHtml}</div>
     `;
-    titleSection.onclick = () => openModal(task.id, 'view');
+    titleSection.onclick = () => window.openModal(task.id, 'view');
 
-    // 3. History Grid
+    // History Grid logic remains same...
     const historyGrid = document.createElement('div');
     historyGrid.className = 'history-grid';
-    
     visibleSessions.forEach(s => {
-      const log = task.history.find(h => h.sessionId === s.sessionId);
+      const log = task.history ? task.history.find(h => h.sessionId === s.sessionId) : null;
       const isDone = log ? log.completed : false;
-      
       const cell = document.createElement('div');
       cell.className = 'h-cell';
-      const dayLabel = document.createElement('span');
-      dayLabel.className = 'h-day-label';
-      dayLabel.innerText = new Date(s.timestamp).toLocaleDateString('en-US', {weekday:'short'});
       const box = document.createElement('div');
       box.className = `h-box ${isDone?'h-done':'h-miss'}`;
-      box.title = new Date(s.timestamp).toLocaleString();
-      cell.append(dayLabel, box);
+      if(!log) box.style.opacity = '0.3'; 
+      box.style.cursor = "pointer";
+      box.onclick = (e) => { e.stopPropagation(); window.openHistoryModal(task.id, s.sessionId); };
+      if(log) { box.title = `Stats: ${log.snapshotCounter} | ${formatTime(log.snapshotTimer)}`; }
+      cell.append(box);
       historyGrid.appendChild(cell);
     });
 
     const liveCell = document.createElement('div');
     liveCell.className = 'h-cell';
-    const liveLabel = document.createElement('span');
-    liveLabel.className = 'h-day-label active-label';
-    liveLabel.innerText = 'Now';
     const liveBox = document.createElement('div');
     liveBox.className = `h-box ${task.completed?'h-live-done':'h-live-pending'}`;
-    liveBox.innerHTML = "&bull;"; 
-    liveCell.append(liveLabel, liveBox);
+    liveBox.innerHTML = "&bull;";
+    liveCell.append(liveBox);
     historyGrid.appendChild(liveCell);
 
-    // 4. Dropdown Menu
     const dropdown = document.createElement('div');
     dropdown.className = 'dropdown';
     dropdown.innerHTML = `
@@ -239,343 +331,547 @@ const API_URL = "https://todo-backend.atrikumar31.workers.dev/todos";
     `;
 
     li.append(cbContainer, titleSection, dropdown, historyGrid);
-    document.getElementById('taskList').appendChild(li);
+    document.getElementById('taskList')!.appendChild(li);
   }
 
-  // --- DROPDOWN LOGIC ---
-  window.toggleDropdown = (e, id) => {
-      e.stopPropagation();
-      document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
-      const dd = document.getElementById(`dropdown-${id}`);
-      if(dd) dd.classList.toggle('show');
-  };
-  window.onclick = (event) => {
-      if (!event.target.matches('.btn-more')) document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
-  };
-
-  // --- MODAL LOGIC ---
-  function enableBackdropClose(dialogId) {
-    const dialog = document.getElementById(dialogId);
-    dialog.addEventListener('click', (event) => {
-        if (event.target === dialog) dialog.close();
-    });
+  // --- MODAL & METRIC LOGIC (Timer functions unchanged) ---
+  function stopLiveTimer() {
+      if(timerInterval) clearInterval(timerInterval);
+      isTimerRunning = false;
+      const btn = document.getElementById('btnTimerToggle');
+      if(btn) { btn.innerText = "Start"; btn.classList.remove('btn-active'); }
   }
-  enableBackdropClose('detailModal');
-  enableBackdropClose('posModal');
 
-  window.openModal = (id, mode = 'view') => {
+  async function saveMetrics() {
+      if(currentId === null || editingSessionId !== null) return; 
+      await fetch(`${API_URL}/${currentId}`, {
+          method:'PATCH', 
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify({ activeCounter: tempCounterValue, activeTimer: tempTimerSeconds })
+      });
+      const t = todos.find(x => x.id === currentId);
+      if(t) { t.activeCounter = tempCounterValue; t.activeTimer = tempTimerSeconds; }
+  }
+
+  window.updateCounter = (delta: number) => {
+      tempCounterValue += delta;
+      if(tempCounterValue < 0) tempCounterValue = 0;
+      document.getElementById('displayCounter')!.innerText = tempCounterValue.toString();
+      saveMetrics();
+  };
+
+  function formatTime(secs: number) {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  }
+  
+  function parseTimeToSeconds(timeStr: string) {
+      const parts = timeStr.split(':').reverse();
+      let seconds = 0;
+      if(parts[0]) seconds += parseInt(parts[0]);
+      if(parts[1]) seconds += parseInt(parts[1]) * 60;
+      if(parts[2]) seconds += parseInt(parts[2]) * 3600;
+      return isNaN(seconds) ? 0 : seconds;
+  }
+
+  window.toggleTimer = () => {
+      const btn = document.getElementById('btnTimerToggle') as HTMLElement;
+      if (isTimerRunning) {
+          stopLiveTimer();
+          saveMetrics();
+      } else {
+          isTimerRunning = true;
+          btn.innerText = "Stop";
+          btn.classList.add('btn-active');
+          timerInterval = setInterval(() => {
+              tempTimerSeconds++;
+              document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds);
+          }, 1000);
+      }
+  };
+
+  window.resetTimer = () => {
+      stopLiveTimer();
+      if(confirm("Reset Timer to 0?")) {
+        tempTimerSeconds = 0;
+        document.getElementById('displayTimer')!.innerText = "00:00:00";
+        saveMetrics();
+      }
+  };
+
+  // --- UPDATED: OPEN MODAL LOGIC ---
+  window.openModal = (id: number, mode: 'view' | 'edit' = 'view') => {
+    stopLiveTimer();
+    editingSessionId = null; 
     const task = todos.find(t => t.id === id);
     if (!task) return;
     currentId = id;
+    const unitName = task.unit || 'units';
 
+    document.getElementById('btnHistoryEdit')!.classList.add('hidden');
+    document.getElementById('historyStatsDisplay')!.classList.add('hidden');
+    document.getElementById('historyMetricsPanel')!.classList.add('hidden');
+
+    document.getElementById('metricsPanel')!.classList.remove('hidden');
+
+    tempCounterValue = task.activeCounter || 0;
+    tempTimerSeconds = task.activeTimer || 0;
+    document.getElementById('displayCounter')!.innerText = tempCounterValue.toString();
+    document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds);
+    document.getElementById('lblCounter')!.innerText = `How many ${unitName} you did`;
+    document.getElementById('lblTimer')!.innerText = `How much time spent in ${unitName}`;
+    
     try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; }
     try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; }
 
-    const viewContainer = document.getElementById('viewModeContainer');
-    const editContainer = document.getElementById('editModeContainer');
-    const headerTitle = document.getElementById('modalHeaderTitle');
-
+    const viewContainer = document.getElementById('viewModeContainer') as HTMLElement;
+    const editContainer = document.getElementById('editModeContainer') as HTMLElement;
+    
     if (mode === 'view') {
         viewContainer.classList.remove('hidden');
         editContainer.classList.add('hidden');
-        headerTitle.innerText = "Task Details";
-        document.getElementById('viewTitle').innerText = task.text;
+        document.getElementById('modalHeaderTitle')!.innerText = "Task Details";
+        document.getElementById('viewTitle')!.innerText = task.text;
         
-        const vItems = document.getElementById('viewItemsList');
-        vItems.innerHTML = '';
-        if(tempItems.length === 0) vItems.innerHTML = '<span class="empty-text">No items listed.</span>';
-        else tempItems.forEach(i => vItems.innerHTML += `<span class="view-tag">${i}</span>`);
+        const vItems = document.getElementById('viewItemsList')!;
+        vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>';
 
-        const vSteps = document.getElementById('viewStepsList');
-        vSteps.innerHTML = '';
-        if(tempSteps.length === 0) vSteps.innerHTML = '<span class="empty-text">No procedure defined.</span>';
-        else tempSteps.forEach((s, ix) => vSteps.innerHTML += `<div class="view-step-row"><span class="step-num">${ix+1}.</span><span>${s}</span></div>`);
+        const vSteps = document.getElementById('viewStepsList')!;
+        vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>';
     } else {
         viewContainer.classList.add('hidden');
         editContainer.classList.remove('hidden');
-        headerTitle.innerText = "Edit Task";
-        document.getElementById('modalTaskTitle').value = task.text;
+        document.getElementById('metricsPanel')!.classList.add('hidden');
+        document.getElementById('modalHeaderTitle')!.innerText = "Edit Task";
+        (document.getElementById('modalTaskTitle') as HTMLInputElement).value = task.text;
+         (document.getElementById('modalUnitInput') as HTMLInputElement).value = unitName;
+         
+        // --- SIMPLE STRING VALUE ---
+        (document.getElementById('modalCategoryInput') as HTMLInputElement).value = task.category || '';
+        // ---------------------------
+        
         renderEditContent();
     }
-    document.getElementById('detailModal').showModal();
+    (document.getElementById('detailModal') as HTMLDialogElement).showModal();
     document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
   };
 
-  window.closeModal = () => document.getElementById('detailModal').close();
+  // --- HISTORY MODAL LOGIC ---
+  window.openHistoryModal = (taskId: number, sessionId: string) => {
+      stopLiveTimer();
+      currentId = taskId;
+      editingSessionId = sessionId; 
 
-  // --- EDIT CONTENT RENDER ---
+      const task = todos.find(t => t.id === taskId);
+      if(!task) return;
+      
+      const log = task.history.find(h => h.sessionId === sessionId);
+      const countVal = log ? log.snapshotCounter : 0;
+      const timerVal = log ? log.snapshotTimer : 0;
+      const isComp = log ? log.completed : false;
+
+      document.getElementById('metricsPanel')!.classList.add('hidden');
+      
+      const readOnlyPanel = document.getElementById('historyStatsDisplay')!;
+      readOnlyPanel.classList.remove('hidden');
+      document.getElementById('readOnlyCount')!.innerText = countVal.toString();
+      document.getElementById('readOnlyTime')!.innerText = formatTime(timerVal);
+      const statusSpan = document.getElementById('readOnlyStatus')!;
+      statusSpan.innerText = isComp ? "Completed" : "Incomplete";
+      statusSpan.style.color = isComp ? "var(--green)" : "var(--sub)";
+
+      const editPanel = document.getElementById('historyMetricsPanel')!;
+      editPanel.classList.add('hidden');
+      (document.getElementById('histCounterInput') as HTMLInputElement).value = countVal.toString();
+      (document.getElementById('histTimerInput') as HTMLInputElement).value = formatTime(timerVal);
+      (document.getElementById('histCompletedCb') as HTMLInputElement).checked = isComp;
+
+      const editBtn = document.getElementById('btnHistoryEdit')!;
+      editBtn.classList.remove('hidden'); 
+      editBtn.innerText = "✎ Edit Stats";
+      
+      editBtn.onclick = () => {
+          const isCurrentlyEditing = !editPanel.classList.contains('hidden');
+          if(isCurrentlyEditing) {
+              editPanel.classList.add('hidden');
+              readOnlyPanel.classList.remove('hidden');
+              editBtn.innerText = "✎ Edit Stats";
+          } else {
+              editPanel.classList.remove('hidden');
+              readOnlyPanel.classList.add('hidden');
+              editBtn.innerText = "✕ Cancel Edit";
+          }
+      };
+
+      document.getElementById('viewModeContainer')!.classList.remove('hidden');
+      document.getElementById('editModeContainer')!.classList.add('hidden');
+      document.getElementById('modalHeaderTitle')!.innerText = "History Record";
+      document.getElementById('viewTitle')!.innerText = `${task.text} (Past)`;
+
+      try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; }
+      try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; }
+      
+      const vItems = document.getElementById('viewItemsList')!;
+      vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>';
+      const vSteps = document.getElementById('viewStepsList')!;
+      vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>';
+
+      (document.getElementById('detailModal') as HTMLDialogElement).showModal();
+  };
+  
+  document.getElementById('saveHistoryBtn')!.onclick = async () => {
+      if(!currentId || !editingSessionId) return;
+      const newCount = parseInt((document.getElementById('histCounterInput') as HTMLInputElement).value) || 0;
+      const newTimeStr = (document.getElementById('histTimerInput') as HTMLInputElement).value;
+      const newCompleted = (document.getElementById('histCompletedCb') as HTMLInputElement).checked;
+      const newTimerVal = parseTimeToSeconds(newTimeStr);
+
+      await fetch(`${HIST_API_URL}/${currentId}/${editingSessionId}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ snapshotCounter: newCount, snapshotTimer: newTimerVal, completed: newCompleted })
+      });
+      window.closeModal();
+      loadTasks();
+  };
+
+  window.closeModal = () => {
+      stopLiveTimer();
+      if(editingSessionId === null) saveMetrics(); 
+      (document.getElementById('detailModal') as HTMLDialogElement).close();
+  };
+
+  // --- EDIT CONTENT ---
   function renderEditContent() {
-    const list = document.getElementById('editItemsList');
-    list.innerHTML = '';
-    tempItems.forEach((item, idx) => {
-      const tag = document.createElement('span');
-      tag.className = 'edit-tag';
-      tag.innerHTML = `${item} <button onclick="deleteItem(${idx})">&times;</button>`;
-      list.appendChild(tag);
-    });
+    const list = document.getElementById('editItemsList')!;
+    list.innerHTML = tempItems.map((item, i) => 
+        `<span class="edit-tag">${item} <button onclick="deleteItem(${i})">&times;</button></span>`
+    ).join('');
 
-    const stepList = document.getElementById('editStepsList');
+    const stepList = document.getElementById('editStepsList')!;
     stepList.innerHTML = '';
     tempSteps.forEach((step, idx) => {
       const row = document.createElement('div');
       row.className = 'edit-step-row';
       row.innerHTML = `
+        <div class="step-controls">
+            <button onclick="moveStep(${idx}, -1)" ${idx===0?'disabled':''}>&#9650;</button>
+            <button onclick="moveStep(${idx}, 1)" ${idx===tempSteps.length-1?'disabled':''}>&#9660;</button>
+        </div>
         <span class="bullet">${idx+1}.</span>
         <input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)">
-        <button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button> `;
+        <button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button> 
+      `;
       stepList.appendChild(row);
     });
   }
 
-  // --- EDIT HANDLERS ---
-  const itemInput = document.getElementById('itemInput');
+  window.moveStep = (idx: number, dir: number) => {
+      if ((dir === -1 && idx === 0) || (dir === 1 && idx === tempSteps.length - 1)) return;
+      const targetIdx = idx + dir;
+      [tempSteps[idx], tempSteps[targetIdx]] = [tempSteps[targetIdx], tempSteps[idx]];
+      renderEditContent();
+  };
+
+  const itemInput = document.getElementById('itemInput') as HTMLInputElement;
   const addItemBtn = document.getElementById('addItemBtn');
+  function triggerAddItem() { if(itemInput.value.trim()){ tempItems.push(itemInput.value.trim()); itemInput.value=''; renderEditContent(); }}
+  if(addItemBtn) addItemBtn.onclick = triggerAddItem;
+  if(itemInput) itemInput.onkeydown = (e) => { if(e.key==='Enter') triggerAddItem(); };
+  
+  window.deleteItem = (i) => { tempItems.splice(i, 1); renderEditContent(); };
+  document.getElementById('addStepBtn')!.onclick = () => { tempSteps.push(""); renderEditContent(); };
+  window.updateStep = (i, v) => { tempSteps[i] = v; };
+  window.deleteStep = (i) => { tempSteps.splice(i, 1); renderEditContent(); };
 
-  function triggerAddItem() {
-    const val = itemInput.value.trim();
-    if(val) { tempItems.push(val); itemInput.value = ''; renderEditContent(); }
-  }
-  addItemBtn.onclick = triggerAddItem;
-  itemInput.onkeydown = (e) => { if (e.key === 'Enter') triggerAddItem(); };
-  window.deleteItem = (idx) => { tempItems.splice(idx, 1); renderEditContent(); };
-  document.getElementById('addStepBtn').onclick = () => { tempSteps.push(""); renderEditContent(); };
-  window.updateStep = (idx, val) => { tempSteps[idx] = val; };
-  window.deleteStep = (idx) => { tempSteps.splice(idx, 1); renderEditContent(); };
+  // --- UPDATED: SAVE DETAILS ---
+  document.getElementById('saveDetailBtn')!.onclick = async () => {
+    const newTitle = (document.getElementById('modalTaskTitle') as HTMLInputElement).value;
+    const newUnit = (document.getElementById('modalUnitInput') as HTMLInputElement).value;
+    const newCat = (document.getElementById('modalCategoryInput') as HTMLInputElement).value; // Simple String
 
-  // --- SAVE ---
-  document.getElementById('saveDetailBtn').onclick = async () => {
-    const newTitle = document.getElementById('modalTaskTitle').value;
-    const cleanSteps = tempSteps.filter(s => s.trim() !== "");
     await fetch(`${API_URL}/${currentId}`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text: newTitle, requiredItems: tempItems, procedure: cleanSteps })
+      body: JSON.stringify({ 
+          text: newTitle, 
+          unit: newUnit, 
+          category: newCat, // Send Simple String
+          requiredItems: tempItems, 
+          procedure: tempSteps.filter(s=>s.trim()!=="") 
+      })
     });
-    closeModal();
+    window.closeModal();
     loadTasks();
   };
 
-  // --- STANDARD ACTIONS ---
-  async function addTask() {
-    const text = document.getElementById('taskInput').value;
-    const cat = document.getElementById('categoryInput').value.split(',').filter(c=>c.trim());
-    if(!text) return;
-    await fetch(API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text, category:cat, priority:targetPriority})});
-    document.getElementById('taskInput').value='';
-    document.getElementById('categoryInput').value='';
-    loadTasks();
+  // --- EXPORT & IMPORT ---
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+
+  if(exportBtn) {
+    exportBtn.onclick = async () => {
+        try {
+            const res = await fetch(`${API_URL}/export`);
+            if(!res.ok) throw new Error("Export failed");
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `todo-backup-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch(e) { alert("Export Failed."); console.error(e); }
+    };
   }
 
-  async function toggle(id, s) {
+  if(importBtn) {
+      importBtn.onclick = () => {
+          if(confirm("Importing will REPLACE your current data. Are you sure?")) { fileInput.click(); }
+      };
+  }
+
+  if(fileInput) {
+      fileInput.onchange = (e: any) => {
+          const file = e.target.files[0];
+          if(!file) return;
+          const reader = new FileReader();
+          reader.onload = async (evt) => {
+              try {
+                  const json = JSON.parse(evt.target?.result as string);
+                  const res = await fetch(`${API_URL}/import`, {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(json)
+                  });
+                  const result = await res.json();
+                  if(result.success) { alert("Import successful!"); loadTasks(); } 
+                  else { alert("Import failed: " + (result.error || "Unknown")); }
+              } catch(err) { alert("Invalid file format."); }
+              fileInput.value = '';
+          };
+          reader.readAsText(file);
+      };
+  }
+
+  // --- UPDATED: ADD TASK ---
+  async function addTask() {
+    const t = (document.getElementById('taskInput') as HTMLInputElement);
+    const c = (document.getElementById('categoryInput') as HTMLInputElement);
+    if(!t.value) return;
+    
+    // SEND STRING DIRECTLY
+    await fetch(API_URL, { 
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({
+            text:t.value, 
+            category: c.value, 
+            priority:targetPriority
+        })
+    });
+    
+    t.value=''; c.value=''; loadTasks();
+  }
+
+  async function toggle(id: number, s: boolean) {
     await fetch(`${API_URL}/${id}/toggle`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:!s})});
     loadTasks();
   }
-
   async function resetAll() {
-    if(confirm("Start new session?")) { await fetch(`${API_URL}/reset`, {method:'POST'}); loadTasks(); }
+    if(confirm("Start new session? Current stats will be saved to history.")) { await fetch(`${API_URL}/reset`, {method:'POST'}); loadTasks(); }
   }
+  window.remove = async (id) => { if(confirm("Delete?")) { await fetch(`${API_URL}/${id}`, {method:'DELETE'}); loadTasks(); } };
 
-  window.remove = async (id) => { if(confirm("Delete?")) { await fetch(`${API_URL}/${id}`, {method:'DELETE'}); loadTasks(); } }
-
-  document.getElementById('addBtn').onclick = addTask;
-  document.getElementById('resetBtn').onclick = resetAll;
-  loadTasks();
-
-  // --- POSITION LOGIC ---
+  document.getElementById('addBtn')!.onclick = addTask;
+  document.getElementById('resetBtn')!.onclick = resetAll;
+  
+  // Position Modal Logic
   const posBtn = document.getElementById('posBtn');
   const moveTaskBtn = document.getElementById('moveTaskBtn');
-  const posModal = document.getElementById('posModal');
-  const posList = document.getElementById('posList');
-  
-  document.getElementById('clearPos').onclick = () => { targetPriority = null; document.getElementById('posIndicator').classList.add('hidden'); };
-  
-  function openPosModal(moveMode) {
+  const posModal = document.getElementById('posModal') as HTMLDialogElement;
+  let isMoveMode = false;
+  document.getElementById('clearPos')!.onclick = () => { targetPriority=null; document.getElementById('posIndicator')!.classList.add('hidden'); };
+
+  function openPosModal(moveMode: boolean) {
     isMoveMode = moveMode;
-    document.getElementById('posModalTitle').innerText = moveMode ? "Move Task Above..." : "Insert New Task Above...";
-    
-    posList.innerHTML = '';
+    document.getElementById('posModalTitle')!.innerText = moveMode ? "Move Task Above..." : "Insert New Task Above...";
+    const list = document.getElementById('posList')!; list.innerHTML = '';
     todos.forEach(t => {
       if (isMoveMode && t.id === currentId) return;
-      const d = document.createElement('div'); 
-      d.className='pos-item'; 
-      d.innerText = `&#11014; ${t.text}`; 
+      const d = document.createElement('div'); d.className='pos-item'; d.innerText = `\u2B06 ${t.text}`; 
       d.onclick = async () => {
         if (isMoveMode) {
-            await fetch(`${API_URL}/${currentId}`, {
-                method: 'PATCH',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ priority: t.priority }) 
-            });
-            posModal.close();
-            closeModal();
-            loadTasks();
+            await fetch(`${API_URL}/${currentId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ priority: t.priority }) });
+            posModal.close(); window.closeModal(); loadTasks();
         } else {
             targetPriority = t.priority; 
-            document.getElementById('posTargetName').innerText = t.text; 
-            document.getElementById('posIndicator').classList.remove('hidden'); 
+            document.getElementById('posTargetName')!.innerText = t.text; 
+            document.getElementById('posIndicator')!.classList.remove('hidden'); 
             posModal.close();
         }
       };
-      posList.appendChild(d);
+      list.appendChild(d);
     });
     posModal.showModal();
   }
+  if(posBtn) posBtn.onclick = () => openPosModal(false);
+  if(moveTaskBtn) moveTaskBtn.onclick = () => openPosModal(true);
 
-  posBtn.onclick = () => openPosModal(false);
-  moveTaskBtn.onclick = () => openPosModal(true);
+  loadTasks();
 
+  window.toggleDropdown = (e, id) => { e.stopPropagation(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); document.getElementById(`dropdown-${id}`)?.classList.toggle('show'); };
+  window.onclick = (e) => { if (!(e.target as Element).matches('.btn-more')) document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); };
 </script>
 
 <style is:global>
-  /* GLOBAL VARS */
+  /* Base Vars & Reset */
   :root { --bg:#1e1e24; --card:#2b2b36; --accent:#7f5af0; --text:#fffffe; --sub:#94a1b2; --green:#2cb67d; --red:#ef4565; --border:#444; }
   body { background:var(--bg); color:var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding:20px; }
   .todo-container { max-width:900px; margin:0 auto; }
   
-  /* HEADER & INPUTS */
-  .header { display:flex; justify-content:space-between; margin-bottom:20px; align-items:center; }
-  .btn-reset { background:var(--card); color:var(--accent); border:1px solid var(--accent); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; }
+  /* Inputs & Header */
+  .header { display:flex; justify-content:space-between; margin-bottom:20px; align-items:center; flex-wrap:wrap; gap:15px; }
+  .title-group { display:flex; align-items:center; gap:15px; }
+  .header-actions { display:flex; gap:8px; }
+  
   .input-card { background:var(--card); padding:15px; border-radius:12px; margin-bottom:20px; display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); }
   .input-row { display:flex; gap:8px; }
   input { flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:10px; color:white; border-radius:6px; outline:none; }
   input:focus { border-color:var(--accent); }
+  
+  .btn-reset { background:var(--card); color:var(--accent); border:1px solid var(--accent); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; }
+  .btn-subtle { background:transparent; color:var(--sub); border:1px solid var(--border); padding:8px 12px; border-radius:8px; cursor:pointer; font-size:0.9rem; transition:0.2s; }
+  .btn-subtle:hover { color:white; border-color:white; }
+  
   .btn-add { background:var(--accent); color:white; border:none; padding:0 20px; border-radius:6px; font-weight:bold; cursor:pointer; }
   .btn-icon { background:rgba(255,255,255,0.05); border:none; width:32px; height:32px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .btn-icon:hover { background:rgba(255,255,255,0.1); }
   
-  /* LIST STRUCTURE */
+  /* List */
   .list-header { display:flex; justify-content:space-between; padding:0 15px 5px; color:var(--sub); font-size:0.8rem; text-transform:uppercase; }
-  .col-history { display:flex; gap:6px; justify-content:flex-end; }
-  .task-list { list-style:none; padding:0; }
   
-  .task-card { 
-    background:var(--card); 
-    margin-bottom:10px; 
-    border-radius:10px; 
-    padding:10px 15px; 
-    display:flex; 
-    align-items: center;
-    gap: 15px; 
-    transition: background 0.2s; 
-    flex-wrap: wrap; 
+  .col-history { 
+    display: flex;             
+    gap: 6px;                  
+    justify-content: flex-end; 
+    align-items: flex-end;    
   }
+
+  .task-list { list-style:none; padding:0; }
+  .task-card { background:var(--card); margin-bottom:10px; border-radius:10px; padding:10px 15px; display:flex; align-items:center; gap:15px; transition: background 0.2s; flex-wrap: wrap; }
   .task-card:hover { background:#323240; }
-
-  /* Left: Checkbox */
-  .cb-container { display:flex; align-items:center; flex-shrink: 0; }
-  .big-cb { width:20px; height:20px; accent-color:var(--green); cursor:pointer; }
-
-  /* Middle: Title */
-  .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width: 200px; }
-  .task-main-text { display:flex; align-items:center; gap:8px; }
-  .task-title { font-size:1rem; font-weight:500; line-height: 1.4; }
-  .task-meta { display:flex; gap:4px; margin-top:2px; }
-  .icon-indicator { font-size:0.9rem; color:var(--accent); }
-  .chip { font-size:0.65rem; background:rgba(255,255,255,0.1); padding:1px 6px; border-radius:4px; color:var(--sub); }
-
-  /* Right: History & Dropdown */
-  .history-grid { display:flex; gap:6px; align-items: center; }
   
-  .h-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .h-day-label { font-size: 0.65rem; color: var(--sub); text-transform: uppercase; font-weight: bold; display: none; } 
-  .active-label { color: var(--accent); }
-
+  /* Sections */
+  .cb-container { display:flex; align-items:center; flex-shrink:0; }
+  .big-cb { width:20px; height:20px; accent-color:var(--green); cursor:pointer; }
+  .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width:200px; }
+  .task-main-text { display:flex; align-items:center; gap:8px; }
+  .task-title { font-size:1rem; font-weight:500; line-height:1.4; }
+  .task-meta { display:flex; gap:4px; margin-top:2px; }
+  .chip { font-size:0.65rem; background:rgba(255,255,255,0.1); padding:1px 6px; border-radius:4px; color:var(--sub); }
+  .icon-indicator { font-size:0.9rem; color:var(--accent); }
+  
+  /* History Grid */
+  .history-grid { display:flex; gap:6px; align-items:center; }
+  .h-cell { display:flex; flex-direction:column; align-items:center; }
   .h-box { width:24px; height:24px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; }
-  .h-col-header { width:24px; text-align:center; display:flex; flex-direction:column; font-size:0.6rem; opacity:0.6; }
-  .active-header { opacity:1; color:var(--accent); }
   .h-done { background:var(--green); color:black; }
   .h-miss { background:#383842; }
   .h-live-done { border:2px solid var(--green); color:var(--green); }
   .h-live-pending { border:2px dashed #555; color:#555; }
-
-  /* Dropdown Styles */
-  .dropdown { position: relative; display: inline-block; margin-left: auto; flex-shrink: 0; }
-  .btn-more { font-weight:bold; font-size:1.2rem; color:var(--sub); }
-  .dropdown-content { display: none; position: absolute; right: 0; background-color: #23232b; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); z-index: 10; border-radius: 8px; border: 1px solid var(--border); overflow:hidden; }
-  .dropdown-content.show { display: block; }
-  .dropdown-content div { padding: 12px 16px; text-decoration: none; display: block; color: var(--text); cursor: pointer; font-size: 0.9rem; }
-  .dropdown-content div:hover { background-color: var(--accent); color: white; }
-  .danger-text:hover { background-color: var(--red) !important; color: white; }
-
-  /* --- MOBILE BREAKPOINT --- */
-  @media (max-width: 600px) {
-      .col-history { display: none; }
-      
-      /* FIX: Align Items to Top Row & Allow Title to Shrink */
-      .task-card { 
-        align-items: flex-start; /* Forces elements to the top */
-        padding-bottom: 15px;
-      }
-      
-      /* IMPORTANT: Let title fill space but not overflow */
-      .title-section { 
-        width: auto; 
-        flex: 1; 
-        min-width: 0; /* Crucial: Allows flex child to shrink below content size */
-        margin-right: 5px;
-      }
-
-      /* Adjust margins */
-      .cb-container { margin-top: 3px; }
-      .dropdown { margin-top: -5px; } 
-      
-      /* Force History Grid to Bottom Row */
-      .history-grid { 
-        display: flex !important; 
-        width: 100%; 
-        order: 10; 
-        justify-content: space-between; 
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px dashed rgba(255,255,255,0.1);
-      }
-      .h-day-label { display: block; }
+  
+  .h-col-header { 
+    width: 24px;               
+    text-align: center; 
+    display: flex; 
+    flex-direction: column; 
+    font-size: 0.6rem; 
+    opacity: 0.6;
+    line-height: 1;            
   }
+  .active-header { opacity:1; color:var(--accent); }
 
-  /* --- MODAL STYLES --- */
+  /* Dropdown */
+  .dropdown { position:relative; margin-left:auto; flex-shrink:0; }
+  .btn-more { font-weight:bold; font-size:1.2rem; color:var(--sub); }
+  .dropdown-content { display:none; position:absolute; right:0; background-color:#23232b; min-width:160px; box-shadow:0 8px 16px rgba(0,0,0,0.5); z-index:10; border-radius:8px; border:1px solid var(--border); overflow:hidden; }
+  .dropdown-content.show { display:block; }
+  .dropdown-content div { padding:12px 16px; cursor:pointer; font-size:0.9rem; }
+  .dropdown-content div:hover { background:var(--accent); color:white; }
+
+  /* Metrics Panel */
+  .metrics-panel { display:flex; gap:15px; margin-bottom:20px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); }
+  .history-edit-mode { flex-direction:column; }
+  .history-controls-row { border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:10px; }
+  .history-inputs-row { display:flex; gap:15px; }
+  
+  .metric-box { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .left-metric { border-right:1px solid var(--border); }
+  .metric-box label { font-size:0.7rem; text-transform:uppercase; color:var(--sub); margin-bottom:5px; font-weight:bold; }
+  .metric-controls { display:flex; align-items:center; gap:15px; }
+  .metric-value { font-size:1.5rem; font-family:monospace; font-weight:bold; min-width:30px; text-align:center; }
+  .timer-display { font-size:1.5rem; font-family:monospace; margin-bottom:5px; }
+  .timer-controls { display:flex; gap:5px; }
+  
+  /* Inputs in Modal */
+  .modal-num-input { font-size:1.2rem; text-align:center; width:120px; padding:5px; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:4px; color:white; font-family:monospace; }
+  .btn-save-small { margin-top:10px; background:var(--accent); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; width:100%; }
+
+  .btn-circle { width:30px; height:30px; border-radius:50%; border:1px solid var(--sub); background:none; color:white; cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center; transition:0.2s; }
+  .btn-circle:hover { background:var(--accent); border-color:var(--accent); }
+  .btn-tiny { font-size:0.7rem; padding:4px 8px; border-radius:4px; border:none; background:var(--green); color:black; font-weight:bold; cursor:pointer; }
+  .btn-tiny.btn-danger { background:var(--sub); opacity:0.7; }
+  .btn-active { background:var(--red) !important; color:white !important; }
+
+  /* Modal */
   .wide-modal { width:550px; max-width:95vw; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; padding:0; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
   .wide-modal::backdrop { background:rgba(0,0,0,0.8); }
-  
-  .modal-wrapper { display: flex; flex-direction: column; height: 100%; }
+  .modal-wrapper { display:flex; flex-direction:column; height:100%; }
   .modal-header { padding:15px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); }
-  .modal-header h3 { margin:0; font-size:1.1rem; }
   .btn-close-x { background:none; border:none; color:var(--sub); font-size:1.5rem; cursor:pointer; line-height:1; }
-  
   .modal-body { padding:20px; max-height:70vh; overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
   .section label { display:block; color:var(--sub); font-size:0.75rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; font-weight:bold; }
-  
-  .view-title-text { margin: 0 0 15px 0; color: var(--accent); font-size: 1.4rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .view-title-text { margin:0 0 15px 0; color:var(--accent); font-size:1.4rem; border-bottom:1px solid var(--border); padding-bottom:10px; }
   .view-list-container { display:flex; flex-wrap:wrap; gap:8px; }
-  .view-tag { background:rgba(127,90,240,0.15); color:#dcb0f5; padding:6px 12px; border-radius:6px; font-size:0.95rem; border:1px solid rgba(127,90,240,0.3); }
-  .view-steps-container { display:flex; flex-direction:column; gap:10px; }
-  .view-step-row { display:flex; gap:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; }
+  .view-tag { background:rgba(127,90,240,0.15); color:#dcb0f5; padding:6px 12px; border-radius:6px; font-size:0.95rem; }
+  .view-step-row { display:flex; gap:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; margin-bottom:5px; }
   .step-num { color:var(--sub); font-weight:bold; min-width:20px; }
-  .empty-text { font-style:italic; color:rgba(255,255,255,0.3); }
+  .cb-label { display:flex; align-items:center; gap:10px; cursor:pointer; color:var(--sub); }
+  .cb-label span { font-weight:bold; color:white; }
 
-  .modal-input-title { font-size:1.2rem; background:rgba(255,255,255,0.05); padding:10px; border:1px solid var(--border); width:100%; box-sizing:border-box; }
-  .items-editor { background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); }
+  /* Edit Elements */
+  .items-editor, .steps-editor { background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px; }
   .tags-container { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .edit-tag { background:var(--accent); color:white; padding:4px 10px; border-radius:15px; font-size:0.85rem; display:flex; align-items:center; gap:6px; }
   .edit-tag button { background:none; border:none; color:rgba(255,255,255,0.7); cursor:pointer; font-size:1rem; padding:0; line-height:1; }
-  .input-group-small { display:flex; gap:5px; }
-  .item-input { background:transparent; border:none; border-bottom:1px solid var(--sub); border-radius:0; padding:4px; font-size:0.9rem; width:100%; }
-  .btn-action-small { background:var(--sub); color:black; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem; }
-  .steps-editor { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
-  .edit-step-row { display:flex; align-items:center; gap:8px; }
-  .bullet { color:var(--sub); font-size:0.9rem; width:20px; }
+  .edit-step-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .step-controls { display:flex; flex-direction:column; gap:2px; }
+  .step-controls button { font-size:0.5rem; padding:1px 4px; background:var(--sub); border:none; color:black; cursor:pointer; border-radius:2px; }
+  .step-controls button:disabled { opacity:0.3; cursor:default; }
   .step-input { background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:6px; border-radius:4px; width:100%; color:white; }
-  .btn-del-step { background:none; border:none; cursor:pointer; opacity:0.5; font-size: 1.2rem; }
+  .btn-del-step { background:none; border:none; cursor:pointer; opacity:0.5; font-size:1.2rem; }
   .btn-dashed { background:transparent; border:1px dashed var(--sub); color:var(--sub); padding:8px; border-radius:6px; cursor:pointer; width:100%; font-size:0.85rem; }
-
   .save-row { padding-top:15px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
   .btn-save { background:var(--green); color:black; border:none; padding:10px 25px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem; }
   
   .hidden { display:none !important; }
-  .pos-badge { color:#dcb0f5; background:rgba(127,90,240,0.2); padding:8px; border-radius:6px; display:flex; justify-content:space-between; }
-  #posModal { padding: 20px; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; }
+  #posModal { padding:20px; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; }
   #posModal::backdrop { background:rgba(0,0,0,0.8); }
   .pos-list { max-height:200px; overflow-y:auto; margin:10px 0; }
   .pos-item { padding:8px; border-bottom:1px solid var(--border); cursor:pointer; }
   .pos-item:hover { background:var(--accent); }
+  .pos-badge { color:#dcb0f5; background:rgba(127,90,240,0.2); padding:8px; border-radius:6px; display:flex; justify-content:space-between; }
   .btn-cancel { background:transparent; border:1px solid var(--border); color:var(--sub); padding:6px 12px; border-radius:6px; cursor:pointer; }
+  
+  @media (max-width: 600px) {
+      .col-history { display:none; }
+      .task-card { align-items:flex-start; padding-bottom:15px; }
+      .title-section { width:auto; flex:1; min-width:0; margin-right:5px; }
+      .history-grid { display:flex !important; width:100%; order:10; justify-content:space-between; margin-top:15px; padding-top:15px; border-top:1px dashed rgba(255,255,255,0.1); }
+  }
 </style>

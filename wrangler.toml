@@ -1,1 +1,4 @@
-name = "arjundubey"  # <--- Make sure this line exists!
+pages_build_output_dir = "./dist"
+name = "arjundubey" 
+[vars]
+PUBLIC_BACKEND_URL="https://todo-backend.atrikumar31.workers.dev"
