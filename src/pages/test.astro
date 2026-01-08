@@ -179,9 +179,9 @@ const { title } = Astro.props;
     </main>
 
 <script>
-        const API_URL = 'http://localhost:8787/vault'; 
-        const BACKUP_URL = 'http://localhost:8787/vault/backup';
-        const IMPORT_URL = 'http://localhost:8787/vault/import';
+      const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
+        const BACKUP_URL = `${BASE_URL}/vault/backup`; 
+        const IMPORT_URL = `${BASE_URL}/vault/import`; 
         
         // Navigation State
         let currentFolderId = null; 
