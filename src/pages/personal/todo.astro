@@ -4,55 +4,58 @@ import Layout from '../../layouts/Layout.astro';
 
 <Layout title="My Tracker">
   <main>
+    <canvas id="effectCanvas"></canvas>
+
     <div class="todo-container">
-      
-      <div class="header">
-        <div class="title-group">
-          <h1>&#128640; My Tracker</h1>
-          <span class="badge" id="countBadge">0 Tasks</span>
-        </div>
-        <div class="header-actions">
-           <button id="exportBtn" class="btn-subtle" title="Download Backup">&#11015; Export</button>
-           <button id="importBtn" class="btn-subtle" title="Restore Backup">&#11014; Import</button>
-           <button id="resetBtn" class="btn-reset">Start New Session</button>
-        </div>
-      </div>
-      
-      <input type="file" id="fileInput" accept=".json" style="display:none" />
-
-      <div class="input-card">
-        <div class="input-row">
-          <input type="text" id="taskInput" placeholder="What needs to be done?" />
-          <button id="posBtn" class="btn-icon" title="Insert Position">&#128205;</button> 
-        </div>
-        <div class="input-row">
-          <input type="text" id="categoryInput" placeholder="Categories (e.g. Work)" />
-          <button id="addBtn" class="btn-add">Add Task</button>
-        </div>
-        <div id="posIndicator" class="pos-badge hidden">
-          Insert above: <b id="posTargetName"></b><span id="clearPos" class="close-x">&times;</span>
-        </div>
-      </div>
-
-      <div class="list-header">
-        <span class="col-task">Task List</span>
-        <div class="col-history" id="historyHeaders"></div>
-      </div>
-
       <ul id="taskList" class="task-list"></ul>
     </div>
+
+    <button id="fabAddBtn" class="fab-btn" title="Menu & Add">&#43;</button>
+
+    <dialog id="addModal" class="modal">
+        <div class="modal-wrapper" style="height: auto; min-height: 0;">
+            <div class="modal-header">
+                <h3>Control Center</h3>
+                <button onclick="document.getElementById('addModal').close()" class="btn-close-x">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="posIndicator" class="pos-badge hidden" style="margin-bottom: 10px;">
+                    Insert above: <b id="posTargetName"></b><span id="clearPos" class="close-x">&times;</span>
+                </div>
+                <div class="input-card" style="border:none; background:transparent; padding:0;">
+                    <div class="input-row">
+                      <input type="text" id="taskInput" placeholder="New Task Name..." />
+                      <button id="posBtn" class="btn-icon" title="Insert Position">&#128205;</button> 
+                    </div>
+                    <div class="input-row">
+                      <input type="text" id="categoryInput" placeholder="Category" />
+                      <button id="addBtn" class="btn-add">Add</button>
+                    </div>
+                </div>
+                <hr class="modal-divider" />
+                <div class="header-actions-col">
+                   <div class="action-row">
+                       <span class="badge" id="countBadge" style="margin:0;">0 Tasks</span>
+                       <button id="resetBtn" class="btn-reset">Start New Session</button>
+                   </div>
+                   <div class="action-row">
+                       <button id="exportBtn" class="btn-subtle" style="flex:1;">&#11015; Export</button>
+                       <button id="importBtn" class="btn-subtle" style="flex:1;">&#11014; Import</button>
+                   </div>
+                   <input type="file" id="fileInput" accept=".json" style="display:none" />
+                </div>
+            </div>
+        </div>
+    </dialog>
 
     <dialog id="detailModal" class="modal wide-modal">
       <div class="modal-wrapper"> 
         <div class="modal-header">
             <button id="btnHistoryEdit" class="btn-dashed hidden" style="margin-right:15px; padding:4px 10px; font-size:0.8rem;">&#9999; Edit Stats</button>
-          
           <h3 id="modalHeaderTitle" style="flex:1; text-align:center;">Task Details</h3>
           <button onclick="closeModal()" class="btn-close-x">&times;</button>
         </div>
-        
         <div class="modal-body">
-            
             <div id="metricsPanel" class="metrics-panel">
                 <div class="metric-box left-metric">
                     <label id="lblCounter">Counter</label>
@@ -71,7 +74,6 @@ import Layout from '../../layouts/Layout.astro';
                     </div>
                 </div>
             </div>
-
             <div id="historyStatsDisplay" class="metrics-panel hidden">
                 <div class="metric-box left-metric">
                     <label>Recorded Count</label>
@@ -86,7 +88,6 @@ import Layout from '../../layouts/Layout.astro';
                      <span id="readOnlyStatus" class="chip">Pending</span>
                 </div>
             </div>
-
             <div id="historyMetricsPanel" class="metrics-panel hidden history-edit-mode">
                  <div class="history-controls-row">
                     <label class="cb-label">
@@ -106,26 +107,22 @@ import Layout from '../../layouts/Layout.astro';
                  </div>
                  <button id="saveHistoryBtn" class="btn-save-small">Update History Record</button>
             </div>
-
           <div id="viewModeContainer" class="mode-container">
               <h2 id="viewTitle" class="view-title-text"></h2>
-              
               <div class="section">
                   <label>&#128230; Required Items</label> 
                   <div id="viewItemsList" class="view-list-container"></div>
               </div>
-
               <div class="section">
                   <label>&#128221; Procedure</label> 
                   <div id="viewStepsList" class="view-steps-container"></div>
               </div>
           </div>
-<div id="editModeContainer" class="mode-container hidden">
+          <div id="editModeContainer" class="mode-container hidden">
             <div class="section">
                 <label>Task Title</label>
                 <input type="text" id="modalTaskTitle" class="modal-input-title" placeholder="Task Name..." />
             </div>
-
             <div class="section">
                 <label>Category</label>
                 <input type="text" id="modalCategoryInput" class="step-input" placeholder="e.g. Work" />
@@ -134,7 +131,6 @@ import Layout from '../../layouts/Layout.astro';
                 <label>Unit Measurement</label>
                 <input type="text" id="modalUnitInput" class="step-input" placeholder="e.g. Pages, Reps, Minutes..." />
             </div>
-            
             <div class="section">
               <label>Position</label>
                 <button id="moveTaskBtn" class="btn-dashed" style="text-align:left;">&#128205; Move Task Location...</button>
@@ -161,7 +157,6 @@ import Layout from '../../layouts/Layout.astro';
         </div>
       </div>
     </dialog>
-
     <dialog id="posModal" class="modal">
       <div class="modal-wrapper">
         <h3 id="posModalTitle">Select Position</h3>
@@ -173,30 +168,11 @@ import Layout from '../../layouts/Layout.astro';
 </Layout>
 
 <script>
-  // INTERFACES
-  interface HistoryLog {
-    sessionId: string;
-    completed: boolean;
-    snapshotCounter: number;
-    snapshotTimer: number;
-  }
-  interface Task {
-    id: number;
-    text: string;
-    completed: boolean;
-    priority: number;
-    category: string; // <-- Now strictly a string
-    requiredItems: string | string[]; 
-    procedure: string | string[];
-    activeCounter: number;
-    activeTimer: number;
-    history: HistoryLog[];
-    unit: string;
-  }
+  // --- INTERFACES & GLOBALS ---
+  interface HistoryLog { sessionId: string; completed: boolean; snapshotCounter: number; snapshotTimer: number; }
+  interface Task { id: number; text: string; completed: boolean; priority: number; category: string; requiredItems: string | string[]; procedure: string | string[]; activeCounter: number; activeTimer: number; history: HistoryLog[]; unit: string; }
   interface Session { sessionId: string; timestamp: number; }
 
-  // ... (Global declarations, URL constants, State vars remain same) ...
-  // GLOBAL DECLARATIONS
   declare global {
     interface Window {
       toggleDropdown: (e: Event, id: number) => void;
@@ -211,6 +187,7 @@ import Layout from '../../layouts/Layout.astro';
       updateCounter: (delta: number) => void;
       toggleTimer: () => void;
       resetTimer: () => void;
+      triggerDestruction: (x: number, y: number) => void;
     }
   }
 
@@ -218,23 +195,82 @@ import Layout from '../../layouts/Layout.astro';
   const API_URL = `${BASE_URL}/todos`; 
   const HIST_API_URL = `${API_URL}/history`;
   
-  // STATE
   let todos: Task[] = [];
   let sessions: Session[] = [];
   let targetPriority: number | null = null; 
   let currentId: number | null = null;
   let editingSessionId: string | null = null; 
-  
-  // Edit State
   let tempItems: string[] = [];
   let tempSteps: string[] = [];
-  
-  // Timer State
   let timerInterval: any = null;
   let tempTimerSeconds = 0;
   let tempCounterValue = 0;
   let isTimerRunning = false;
 
+  // --- CANVAS ENGINE (Cracks & Sparks) ---
+  const canvas = document.getElementById('effectCanvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d');
+  let effects: any[] = [];
+  
+  function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  const sparkColors = ['#ff0000', '#ff4d00', '#ffae00', '#ffffff'];
+  class Spark {
+      x: number; y: number; vx: number; vy: number; size: number; color: string; life: number;
+      constructor(x: number, y: number) {
+          this.x = x; this.y = y;
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 10 + 5; 
+          this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+          this.size = Math.random() * 3 + 1;
+          this.color = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+          this.life = 1.0;
+      }
+      update() { this.x += this.vx; this.y += this.vy; this.vy += 0.3; this.life -= 0.03; }
+      draw(ctx: CanvasRenderingContext2D) {
+          ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      }
+  }
+
+  class Crack {
+      path: {x:number, y:number}[] = []; life: number = 1.0;
+      constructor(startX: number, startY: number) { this.generatePath(startX, startY, -1); this.generatePath(startX, startY, 1); }
+      generatePath(sx: number, sy: number, dir: number) {
+          let cx = sx; let cy = sy; this.path.push({x: cx, y: cy});
+          for(let i=0; i<20; i++) { cx += (Math.random() * 30 + 20) * dir; cy += (Math.random() * 40 - 20); this.path.push({x: cx, y: cy}); }
+      }
+      update() { this.life -= 0.04; }
+      draw(ctx: CanvasRenderingContext2D) {
+          if(this.life <= 0) return;
+          ctx.save(); ctx.globalAlpha = this.life; ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000';
+          ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.beginPath(); let first = true;
+          this.path.forEach(p => { if(first) { ctx.moveTo(p.x, p.y); first=false; } else ctx.lineTo(p.x, p.y); });
+          ctx.stroke();
+          ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.stroke();
+          ctx.restore();
+      }
+  }
+
+  function loop() {
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = effects.length - 1; i >= 0; i--) {
+          effects[i].update(); effects[i].draw(ctx!);
+          if (effects[i].life <= 0) effects.splice(i, 1);
+      }
+      requestAnimationFrame(loop);
+  }
+  loop();
+
+  window.triggerDestruction = (x: number, y: number) => {
+      for (let i = 0; i < 40; i++) { effects.push(new Spark(x, y)); }
+      effects.push(new Crack(x, y));
+  };
+
+  // --- DATA & RENDER LOGIC ---
   async function loadTasks() {
     try {
       const res = await fetch(API_URL);
@@ -247,46 +283,39 @@ import Layout from '../../layouts/Layout.astro';
 
   function render() {
     const list = document.getElementById('taskList') as HTMLElement;
-    const headerRow = document.getElementById('historyHeaders') as HTMLElement;
     document.getElementById('countBadge')!.innerText = `${todos.length} Tasks`;
     list.innerHTML = '';
-
     const visibleSessions = [...sessions].reverse().slice(-6); 
-    
-    let headerHtml = '';
-    visibleSessions.forEach(s => {
-      const d = new Date(s.timestamp);
-      headerHtml += `<div class="h-col-header"><span>${d.toLocaleDateString('en-US',{weekday:'short'})}</span></div>`;
-    });
-    headerHtml += `<div class="h-col-header active-header"><span>NOW</span></div>`;
-    headerRow.innerHTML = headerHtml;
-
     todos.forEach(t => createTaskElement(t, visibleSessions));
   }
 
   function createTaskElement(task: Task, visibleSessions: Session[]) {
     const li = document.createElement('li');
+    li.id = `task-row-${task.id}`; 
     li.className = `task-card ${task.completed ? 'done' : ''}`;
-
-    const hasDetails = (task.requiredItems?.length > 0) || (task.procedure?.length > 0);
-    const detailIndicator = hasDetails ? '<span class="icon-indicator" title="Has Details">&#128221;</span>' : '';
 
     const cbContainer = document.createElement('div');
     cbContainer.className = 'cb-container';
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.className = 'big-cb'; cb.checked = task.completed;
-    cb.onclick = (e) => { e.stopPropagation(); toggle(task.id, task.completed); };
-    cbContainer.appendChild(cb);
+    
+    cb.onclick = (e: MouseEvent) => { 
+        e.stopPropagation(); 
+        if (!task.completed) {
+            window.triggerDestruction(e.clientX, e.clientY);
+            const row = document.getElementById(`task-row-${task.id}`);
+            if(row) { row.classList.add('destruction-mode'); }
+        }
+        toggle(task.id, task.completed); 
+    };
 
+    cbContainer.appendChild(cb);
     const titleSection = document.createElement('div');
     titleSection.className = 'title-section';
-
-    // --- UPDATED: SIMPLE STRING RENDERING ---
     let catHtml = '';
-    if (task.category && task.category.trim() !== '') {
-        catHtml = `<span class="chip">${task.category}</span>`;
-    }
-    // ----------------------------------------
+    if (task.category && task.category.trim() !== '') { catHtml = `<span class="chip">${task.category}</span>`; }
+    const hasDetails = (task.requiredItems?.length > 0) || (task.procedure?.length > 0);
+    const detailIndicator = hasDetails ? '<span class="icon-indicator" title="Has Details">&#128221;</span>' : '';
 
     titleSection.innerHTML = `
         <div class="task-main-text"><span class="task-title">${task.text}</span>${detailIndicator}</div>
@@ -294,522 +323,141 @@ import Layout from '../../layouts/Layout.astro';
     `;
     titleSection.onclick = () => window.openModal(task.id, 'view');
 
-    // History Grid logic remains same...
-    const historyGrid = document.createElement('div');
-    historyGrid.className = 'history-grid';
+    let historyHtml = '<div class="dropdown-history-grid">';
     visibleSessions.forEach(s => {
       const log = task.history ? task.history.find(h => h.sessionId === s.sessionId) : null;
       const isDone = log ? log.completed : false;
-      const cell = document.createElement('div');
-      cell.className = 'h-cell';
-      const box = document.createElement('div');
-      box.className = `h-box ${isDone?'h-done':'h-miss'}`;
-      if(!log) box.style.opacity = '0.3'; 
-      box.style.cursor = "pointer";
-      box.onclick = (e) => { e.stopPropagation(); window.openHistoryModal(task.id, s.sessionId); };
-      if(log) { box.title = `Stats: ${log.snapshotCounter} | ${formatTime(log.snapshotTimer)}`; }
-      cell.append(box);
-      historyGrid.appendChild(cell);
+      const d = new Date(s.timestamp).toLocaleDateString('en-US',{weekday:'short'});
+      historyHtml += `<div class="dh-row" onclick="openHistoryModal(${task.id}, '${s.sessionId}')"><span class="dh-date">${d}</span><div class="h-box ${isDone?'h-done':'h-miss'}" style="opacity:${log?1:0.3}"></div></div>`;
     });
-
-    const liveCell = document.createElement('div');
-    liveCell.className = 'h-cell';
-    const liveBox = document.createElement('div');
-    liveBox.className = `h-box ${task.completed?'h-live-done':'h-live-pending'}`;
-    liveBox.innerHTML = "&bull;";
-    liveCell.append(liveBox);
-    historyGrid.appendChild(liveCell);
+    historyHtml += `<div class="dh-row" style="border-top:1px solid #444; padding-top:4px; margin-top:2px;"><span class="dh-date active-header">NOW</span><div class="h-box ${task.completed?'h-live-done':'h-live-pending'}">&bull;</div></div></div>`;
 
     const dropdown = document.createElement('div');
     dropdown.className = 'dropdown';
-    dropdown.innerHTML = `
-        <button class="btn-icon btn-more" onclick="toggleDropdown(event, ${task.id})">&#8942;</button> 
-        <div id="dropdown-${task.id}" class="dropdown-content">
-            <div onclick="openModal(${task.id}, 'edit')">&#9999; Edit Details</div> 
-            <div onclick="remove(${task.id})" class="danger-text">&#128465; Delete</div> 
-        </div>
-    `;
-
-    li.append(cbContainer, titleSection, dropdown, historyGrid);
+    dropdown.innerHTML = `<button class="btn-icon btn-more" onclick="toggleDropdown(event, ${task.id})">&#8942;</button><div id="dropdown-${task.id}" class="dropdown-content"><div class="dd-label">History (Last 7 Days)</div>${historyHtml}<div class="dd-divider"></div><div onclick="openModal(${task.id}, 'edit')">&#9999; Edit Details</div><div onclick="remove(${task.id})" class="danger-text">&#128465; Delete</div></div>`;
+    
+    li.append(cbContainer, titleSection, dropdown);
     document.getElementById('taskList')!.appendChild(li);
   }
 
-  // --- MODAL & METRIC LOGIC (Timer functions unchanged) ---
-  function stopLiveTimer() {
-      if(timerInterval) clearInterval(timerInterval);
-      isTimerRunning = false;
-      const btn = document.getElementById('btnTimerToggle');
-      if(btn) { btn.innerText = "Start"; btn.classList.remove('btn-active'); }
-  }
-
-  async function saveMetrics() {
-      if(currentId === null || editingSessionId !== null) return; 
-      await fetch(`${API_URL}/${currentId}`, {
-          method:'PATCH', 
-          headers:{'Content-Type':'application/json'}, 
-          body: JSON.stringify({ activeCounter: tempCounterValue, activeTimer: tempTimerSeconds })
-      });
-      const t = todos.find(x => x.id === currentId);
-      if(t) { t.activeCounter = tempCounterValue; t.activeTimer = tempTimerSeconds; }
-  }
-
-  window.updateCounter = (delta: number) => {
-      tempCounterValue += delta;
-      if(tempCounterValue < 0) tempCounterValue = 0;
-      document.getElementById('displayCounter')!.innerText = tempCounterValue.toString();
-      saveMetrics();
-  };
-
-  function formatTime(secs: number) {
-      const h = Math.floor(secs / 3600);
-      const m = Math.floor((secs % 3600) / 60);
-      const s = secs % 60;
-      return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-  }
-  
-  function parseTimeToSeconds(timeStr: string) {
-      const parts = timeStr.split(':').reverse();
-      let seconds = 0;
-      if(parts[0]) seconds += parseInt(parts[0]);
-      if(parts[1]) seconds += parseInt(parts[1]) * 60;
-      if(parts[2]) seconds += parseInt(parts[2]) * 3600;
-      return isNaN(seconds) ? 0 : seconds;
-  }
-
-  window.toggleTimer = () => {
-      const btn = document.getElementById('btnTimerToggle') as HTMLElement;
-      if (isTimerRunning) {
-          stopLiveTimer();
-          saveMetrics();
-      } else {
-          isTimerRunning = true;
-          btn.innerText = "Stop";
-          btn.classList.add('btn-active');
-          timerInterval = setInterval(() => {
-              tempTimerSeconds++;
-              document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds);
-          }, 1000);
-      }
-  };
-
-  window.resetTimer = () => {
-      stopLiveTimer();
-      if(confirm("Reset Timer to 0?")) {
-        tempTimerSeconds = 0;
-        document.getElementById('displayTimer')!.innerText = "00:00:00";
-        saveMetrics();
-      }
-  };
-
-  // --- UPDATED: OPEN MODAL LOGIC ---
-  window.openModal = (id: number, mode: 'view' | 'edit' = 'view') => {
-    stopLiveTimer();
-    editingSessionId = null; 
-    const task = todos.find(t => t.id === id);
-    if (!task) return;
-    currentId = id;
-    const unitName = task.unit || 'units';
-
-    document.getElementById('btnHistoryEdit')!.classList.add('hidden');
-    document.getElementById('historyStatsDisplay')!.classList.add('hidden');
-    document.getElementById('historyMetricsPanel')!.classList.add('hidden');
-
-    document.getElementById('metricsPanel')!.classList.remove('hidden');
-
-    tempCounterValue = task.activeCounter || 0;
-    tempTimerSeconds = task.activeTimer || 0;
-    document.getElementById('displayCounter')!.innerText = tempCounterValue.toString();
-    document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds);
-    document.getElementById('lblCounter')!.innerText = `How many ${unitName} you did`;
-    document.getElementById('lblTimer')!.innerText = `How much time spent in ${unitName}`;
-    
-    try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; }
-    try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; }
-
-    const viewContainer = document.getElementById('viewModeContainer') as HTMLElement;
-    const editContainer = document.getElementById('editModeContainer') as HTMLElement;
-    
-    if (mode === 'view') {
-        viewContainer.classList.remove('hidden');
-        editContainer.classList.add('hidden');
-        document.getElementById('modalHeaderTitle')!.innerText = "Task Details";
-        document.getElementById('viewTitle')!.innerText = task.text;
-        
-        const vItems = document.getElementById('viewItemsList')!;
-        vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>';
-
-        const vSteps = document.getElementById('viewStepsList')!;
-        vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>';
-    } else {
-        viewContainer.classList.add('hidden');
-        editContainer.classList.remove('hidden');
-        document.getElementById('metricsPanel')!.classList.add('hidden');
-        document.getElementById('modalHeaderTitle')!.innerText = "Edit Task";
-        (document.getElementById('modalTaskTitle') as HTMLInputElement).value = task.text;
-         (document.getElementById('modalUnitInput') as HTMLInputElement).value = unitName;
-         
-        // --- SIMPLE STRING VALUE ---
-        (document.getElementById('modalCategoryInput') as HTMLInputElement).value = task.category || '';
-        // ---------------------------
-        
-        renderEditContent();
-    }
-    (document.getElementById('detailModal') as HTMLDialogElement).showModal();
-    document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
-  };
-
-  // --- HISTORY MODAL LOGIC ---
-  window.openHistoryModal = (taskId: number, sessionId: string) => {
-      stopLiveTimer();
-      currentId = taskId;
-      editingSessionId = sessionId; 
-
-      const task = todos.find(t => t.id === taskId);
-      if(!task) return;
-      
-      const log = task.history.find(h => h.sessionId === sessionId);
-      const countVal = log ? log.snapshotCounter : 0;
-      const timerVal = log ? log.snapshotTimer : 0;
-      const isComp = log ? log.completed : false;
-
-      document.getElementById('metricsPanel')!.classList.add('hidden');
-      
-      const readOnlyPanel = document.getElementById('historyStatsDisplay')!;
-      readOnlyPanel.classList.remove('hidden');
-      document.getElementById('readOnlyCount')!.innerText = countVal.toString();
-      document.getElementById('readOnlyTime')!.innerText = formatTime(timerVal);
-      const statusSpan = document.getElementById('readOnlyStatus')!;
-      statusSpan.innerText = isComp ? "Completed" : "Incomplete";
-      statusSpan.style.color = isComp ? "var(--green)" : "var(--sub)";
-
-      const editPanel = document.getElementById('historyMetricsPanel')!;
-      editPanel.classList.add('hidden');
-      (document.getElementById('histCounterInput') as HTMLInputElement).value = countVal.toString();
-      (document.getElementById('histTimerInput') as HTMLInputElement).value = formatTime(timerVal);
-      (document.getElementById('histCompletedCb') as HTMLInputElement).checked = isComp;
-
-      const editBtn = document.getElementById('btnHistoryEdit')!;
-      editBtn.classList.remove('hidden'); 
-      editBtn.innerText = "✎ Edit Stats";
-      
-      editBtn.onclick = () => {
-          const isCurrentlyEditing = !editPanel.classList.contains('hidden');
-          if(isCurrentlyEditing) {
-              editPanel.classList.add('hidden');
-              readOnlyPanel.classList.remove('hidden');
-              editBtn.innerText = "✎ Edit Stats";
-          } else {
-              editPanel.classList.remove('hidden');
-              readOnlyPanel.classList.add('hidden');
-              editBtn.innerText = "✕ Cancel Edit";
-          }
-      };
-
-      document.getElementById('viewModeContainer')!.classList.remove('hidden');
-      document.getElementById('editModeContainer')!.classList.add('hidden');
-      document.getElementById('modalHeaderTitle')!.innerText = "History Record";
-      document.getElementById('viewTitle')!.innerText = `${task.text} (Past)`;
-
-      try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; }
-      try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; }
-      
-      const vItems = document.getElementById('viewItemsList')!;
-      vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>';
-      const vSteps = document.getElementById('viewStepsList')!;
-      vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>';
-
-      (document.getElementById('detailModal') as HTMLDialogElement).showModal();
-  };
-  
-  document.getElementById('saveHistoryBtn')!.onclick = async () => {
-      if(!currentId || !editingSessionId) return;
-      const newCount = parseInt((document.getElementById('histCounterInput') as HTMLInputElement).value) || 0;
-      const newTimeStr = (document.getElementById('histTimerInput') as HTMLInputElement).value;
-      const newCompleted = (document.getElementById('histCompletedCb') as HTMLInputElement).checked;
-      const newTimerVal = parseTimeToSeconds(newTimeStr);
-
-      await fetch(`${HIST_API_URL}/${currentId}/${editingSessionId}`, {
-          method: 'PATCH',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ snapshotCounter: newCount, snapshotTimer: newTimerVal, completed: newCompleted })
-      });
-      window.closeModal();
-      loadTasks();
-  };
-
-  window.closeModal = () => {
-      stopLiveTimer();
-      if(editingSessionId === null) saveMetrics(); 
-      (document.getElementById('detailModal') as HTMLDialogElement).close();
-  };
-
-  // --- EDIT CONTENT ---
-  function renderEditContent() {
-    const list = document.getElementById('editItemsList')!;
-    list.innerHTML = tempItems.map((item, i) => 
-        `<span class="edit-tag">${item} <button onclick="deleteItem(${i})">&times;</button></span>`
-    ).join('');
-
-    const stepList = document.getElementById('editStepsList')!;
-    stepList.innerHTML = '';
-    tempSteps.forEach((step, idx) => {
-      const row = document.createElement('div');
-      row.className = 'edit-step-row';
-      row.innerHTML = `
-        <div class="step-controls">
-            <button onclick="moveStep(${idx}, -1)" ${idx===0?'disabled':''}>&#9650;</button>
-            <button onclick="moveStep(${idx}, 1)" ${idx===tempSteps.length-1?'disabled':''}>&#9660;</button>
-        </div>
-        <span class="bullet">${idx+1}.</span>
-        <input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)">
-        <button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button> 
-      `;
-      stepList.appendChild(row);
-    });
-  }
-
-  window.moveStep = (idx: number, dir: number) => {
-      if ((dir === -1 && idx === 0) || (dir === 1 && idx === tempSteps.length - 1)) return;
-      const targetIdx = idx + dir;
-      [tempSteps[idx], tempSteps[targetIdx]] = [tempSteps[targetIdx], tempSteps[idx]];
-      renderEditContent();
-  };
-
-  const itemInput = document.getElementById('itemInput') as HTMLInputElement;
-  const addItemBtn = document.getElementById('addItemBtn');
-  function triggerAddItem() { if(itemInput.value.trim()){ tempItems.push(itemInput.value.trim()); itemInput.value=''; renderEditContent(); }}
-  if(addItemBtn) addItemBtn.onclick = triggerAddItem;
-  if(itemInput) itemInput.onkeydown = (e) => { if(e.key==='Enter') triggerAddItem(); };
-  
-  window.deleteItem = (i) => { tempItems.splice(i, 1); renderEditContent(); };
-  document.getElementById('addStepBtn')!.onclick = () => { tempSteps.push(""); renderEditContent(); };
-  window.updateStep = (i, v) => { tempSteps[i] = v; };
-  window.deleteStep = (i) => { tempSteps.splice(i, 1); renderEditContent(); };
-
-  // --- UPDATED: SAVE DETAILS ---
-  document.getElementById('saveDetailBtn')!.onclick = async () => {
-    const newTitle = (document.getElementById('modalTaskTitle') as HTMLInputElement).value;
-    const newUnit = (document.getElementById('modalUnitInput') as HTMLInputElement).value;
-    const newCat = (document.getElementById('modalCategoryInput') as HTMLInputElement).value; // Simple String
-
-    await fetch(`${API_URL}/${currentId}`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ 
-          text: newTitle, 
-          unit: newUnit, 
-          category: newCat, // Send Simple String
-          requiredItems: tempItems, 
-          procedure: tempSteps.filter(s=>s.trim()!=="") 
-      })
-    });
-    window.closeModal();
-    loadTasks();
-  };
-
-  // --- EXPORT & IMPORT ---
-  const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
-  const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-
-  if(exportBtn) {
-    exportBtn.onclick = async () => {
-        try {
-            const res = await fetch(`${API_URL}/export`);
-            if(!res.ok) throw new Error("Export failed");
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `todo-backup-${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch(e) { alert("Export Failed."); console.error(e); }
-    };
-  }
-
-  if(importBtn) {
-      importBtn.onclick = () => {
-          if(confirm("Importing will REPLACE your current data. Are you sure?")) { fileInput.click(); }
-      };
-  }
-
-  if(fileInput) {
-      fileInput.onchange = (e: any) => {
-          const file = e.target.files[0];
-          if(!file) return;
-          const reader = new FileReader();
-          reader.onload = async (evt) => {
-              try {
-                  const json = JSON.parse(evt.target?.result as string);
-                  const res = await fetch(`${API_URL}/import`, {
-                      method: 'POST',
-                      headers: {'Content-Type': 'application/json'},
-                      body: JSON.stringify(json)
-                  });
-                  const result = await res.json();
-                  if(result.success) { alert("Import successful!"); loadTasks(); } 
-                  else { alert("Import failed: " + (result.error || "Unknown")); }
-              } catch(err) { alert("Invalid file format."); }
-              fileInput.value = '';
-          };
-          reader.readAsText(file);
-      };
-  }
-
-  // --- UPDATED: ADD TASK ---
-  async function addTask() {
-    const t = (document.getElementById('taskInput') as HTMLInputElement);
-    const c = (document.getElementById('categoryInput') as HTMLInputElement);
-    if(!t.value) return;
-    
-    // SEND STRING DIRECTLY
-    await fetch(API_URL, { 
-        method:'POST', 
-        headers:{'Content-Type':'application/json'}, 
-        body:JSON.stringify({
-            text:t.value, 
-            category: c.value, 
-            priority:targetPriority
-        })
-    });
-    
-    t.value=''; c.value=''; loadTasks();
-  }
-
-  async function toggle(id: number, s: boolean) {
-    await fetch(`${API_URL}/${id}/toggle`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:!s})});
-    loadTasks();
-  }
-  async function resetAll() {
-    if(confirm("Start new session? Current stats will be saved to history.")) { await fetch(`${API_URL}/reset`, {method:'POST'}); loadTasks(); }
-  }
+  // --- STANDARD ACTIONS ---
+  function stopLiveTimer() { if(timerInterval) clearInterval(timerInterval); isTimerRunning = false; const btn = document.getElementById('btnTimerToggle'); if(btn) { btn.innerText = "Start"; btn.classList.remove('btn-active'); } }
+  async function saveMetrics() { if(currentId === null || editingSessionId !== null) return; await fetch(`${API_URL}/${currentId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ activeCounter: tempCounterValue, activeTimer: tempTimerSeconds }) }); }
+  window.updateCounter = (delta) => { tempCounterValue = Math.max(0, tempCounterValue + delta); document.getElementById('displayCounter')!.innerText = tempCounterValue.toString(); saveMetrics(); };
+  function formatTime(secs) { const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60; return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+  function parseTimeToSeconds(timeStr) { const parts = timeStr.split(':').reverse(); let s = 0; if(parts[0]) s += parseInt(parts[0]); if(parts[1]) s += parseInt(parts[1]) * 60; if(parts[2]) s += parseInt(parts[2]) * 3600; return isNaN(s) ? 0 : s; }
+  window.toggleTimer = () => { const btn = document.getElementById('btnTimerToggle') as HTMLElement; if (isTimerRunning) { stopLiveTimer(); saveMetrics(); } else { isTimerRunning = true; btn.innerText = "Stop"; btn.classList.add('btn-active'); timerInterval = setInterval(() => { tempTimerSeconds++; document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds); }, 1000); } };
+  window.resetTimer = () => { stopLiveTimer(); if(confirm("Reset Timer to 0?")) { tempTimerSeconds = 0; document.getElementById('displayTimer')!.innerText = "00:00:00"; saveMetrics(); } };
+  window.openModal = (id, mode = 'view') => { stopLiveTimer(); editingSessionId = null; const task = todos.find(t => t.id === id); if (!task) return; currentId = id; const unitName = task.unit || 'units'; document.getElementById('btnHistoryEdit')!.classList.add('hidden'); document.getElementById('historyStatsDisplay')!.classList.add('hidden'); document.getElementById('historyMetricsPanel')!.classList.add('hidden'); document.getElementById('metricsPanel')!.classList.remove('hidden'); tempCounterValue = task.activeCounter || 0; tempTimerSeconds = task.activeTimer || 0; document.getElementById('displayCounter')!.innerText = tempCounterValue.toString(); document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds); document.getElementById('lblCounter')!.innerText = `How many ${unitName} you did`; document.getElementById('lblTimer')!.innerText = `How much time spent in ${unitName}`; try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } const viewContainer = document.getElementById('viewModeContainer') as HTMLElement; const editContainer = document.getElementById('editModeContainer') as HTMLElement; if (mode === 'view') { viewContainer.classList.remove('hidden'); editContainer.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Task Details"; document.getElementById('viewTitle')!.innerText = task.text; const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; } else { viewContainer.classList.add('hidden'); editContainer.classList.remove('hidden'); document.getElementById('metricsPanel')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Edit Task"; (document.getElementById('modalTaskTitle') as HTMLInputElement).value = task.text; (document.getElementById('modalUnitInput') as HTMLInputElement).value = unitName; (document.getElementById('modalCategoryInput') as HTMLInputElement).value = task.category || ''; renderEditContent(); } (document.getElementById('detailModal') as HTMLDialogElement).showModal(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); };
+  window.openHistoryModal = (taskId, sessionId) => { stopLiveTimer(); currentId = taskId; editingSessionId = sessionId; const task = todos.find(t => t.id === taskId); if(!task) return; const log = task.history.find(h => h.sessionId === sessionId); const countVal = log ? log.snapshotCounter : 0; const timerVal = log ? log.snapshotTimer : 0; const isComp = log ? log.completed : false; document.getElementById('metricsPanel')!.classList.add('hidden'); const readOnlyPanel = document.getElementById('historyStatsDisplay')!; readOnlyPanel.classList.remove('hidden'); document.getElementById('readOnlyCount')!.innerText = countVal.toString(); document.getElementById('readOnlyTime')!.innerText = formatTime(timerVal); const statusSpan = document.getElementById('readOnlyStatus')!; statusSpan.innerText = isComp ? "Completed" : "Incomplete"; statusSpan.style.color = isComp ? "var(--green)" : "var(--sub)"; const editPanel = document.getElementById('historyMetricsPanel')!; editPanel.classList.add('hidden'); (document.getElementById('histCounterInput') as HTMLInputElement).value = countVal.toString(); (document.getElementById('histTimerInput') as HTMLInputElement).value = formatTime(timerVal); (document.getElementById('histCompletedCb') as HTMLInputElement).checked = isComp; const editBtn = document.getElementById('btnHistoryEdit')!; editBtn.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; editBtn.onclick = () => { const isCurrentlyEditing = !editPanel.classList.contains('hidden'); if(isCurrentlyEditing) { editPanel.classList.add('hidden'); readOnlyPanel.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; } else { editPanel.classList.remove('hidden'); readOnlyPanel.classList.add('hidden'); editBtn.innerText = "✕ Cancel Edit"; } }; document.getElementById('viewModeContainer')!.classList.remove('hidden'); document.getElementById('editModeContainer')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "History Record"; document.getElementById('viewTitle')!.innerText = `${task.text} (Past)`; try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; (document.getElementById('detailModal') as HTMLDialogElement).showModal(); };
+  document.getElementById('saveHistoryBtn')!.onclick = async () => { if(!currentId || !editingSessionId) return; const newCount = parseInt((document.getElementById('histCounterInput') as HTMLInputElement).value) || 0; const newTimeStr = (document.getElementById('histTimerInput') as HTMLInputElement).value; const newCompleted = (document.getElementById('histCompletedCb') as HTMLInputElement).checked; const newTimerVal = parseTimeToSeconds(newTimeStr); await fetch(`${HIST_API_URL}/${currentId}/${editingSessionId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ snapshotCounter: newCount, snapshotTimer: newTimerVal, completed: newCompleted }) }); window.closeModal(); loadTasks(); };
+  window.closeModal = () => { stopLiveTimer(); if(editingSessionId === null) saveMetrics(); (document.getElementById('detailModal') as HTMLDialogElement).close(); };
+  function renderEditContent() { const list = document.getElementById('editItemsList')!; list.innerHTML = tempItems.map((item, i) => `<span class="edit-tag">${item} <button onclick="deleteItem(${i})">&times;</button></span>`).join(''); const stepList = document.getElementById('editStepsList')!; stepList.innerHTML = ''; tempSteps.forEach((step, idx) => { const row = document.createElement('div'); row.className = 'edit-step-row'; row.innerHTML = `<div class="step-controls"><button onclick="moveStep(${idx}, -1)" ${idx===0?'disabled':''}>&#9650;</button><button onclick="moveStep(${idx}, 1)" ${idx===tempSteps.length-1?'disabled':''}>&#9660;</button></div><span class="bullet">${idx+1}.</span><input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)"><button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button>`; stepList.appendChild(row); }); }
+  window.moveStep = (idx, dir) => { if ((dir === -1 && idx === 0) || (dir === 1 && idx === tempSteps.length - 1)) return; const targetIdx = idx + dir; [tempSteps[idx], tempSteps[targetIdx]] = [tempSteps[targetIdx], tempSteps[idx]]; renderEditContent(); };
+  const itemInput = document.getElementById('itemInput') as HTMLInputElement; const addItemBtn = document.getElementById('addItemBtn'); function triggerAddItem() { if(itemInput.value.trim()){ tempItems.push(itemInput.value.trim()); itemInput.value=''; renderEditContent(); }} if(addItemBtn) addItemBtn.onclick = triggerAddItem; if(itemInput) itemInput.onkeydown = (e) => { if(e.key==='Enter') triggerAddItem(); };
+  window.deleteItem = (i) => { tempItems.splice(i, 1); renderEditContent(); }; document.getElementById('addStepBtn')!.onclick = () => { tempSteps.push(""); renderEditContent(); }; window.updateStep = (i, v) => { tempSteps[i] = v; }; window.deleteStep = (i) => { tempSteps.splice(i, 1); renderEditContent(); };
+  document.getElementById('saveDetailBtn')!.onclick = async () => { const newTitle = (document.getElementById('modalTaskTitle') as HTMLInputElement).value; const newUnit = (document.getElementById('modalUnitInput') as HTMLInputElement).value; const newCat = (document.getElementById('modalCategoryInput') as HTMLInputElement).value; await fetch(`${API_URL}/${currentId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text: newTitle, unit: newUnit, category: newCat, requiredItems: tempItems, procedure: tempSteps.filter(s=>s.trim()!=="") }) }); window.closeModal(); loadTasks(); };
+  const exportBtn = document.getElementById('exportBtn'); if(exportBtn) { exportBtn.onclick = async () => { try { const res = await fetch(`${API_URL}/export`); if(!res.ok) throw new Error("Export failed"); const blob = await res.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `todo-backup-${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url); } catch(e) { alert("Export Failed."); console.error(e); } }; }
+  const importBtn = document.getElementById('importBtn'); const fileInput = document.getElementById('fileInput') as HTMLInputElement; if(importBtn) { importBtn.onclick = () => { if(confirm("Importing will REPLACE your current data. Are you sure?")) { fileInput.click(); } }; } if(fileInput) { fileInput.onchange = (e: any) => { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async (evt) => { try { const json = JSON.parse(evt.target?.result as string); const res = await fetch(`${API_URL}/import`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(json) }); const result = await res.json(); if(result.success) { alert("Import successful!"); loadTasks(); } else { alert("Import failed: " + (result.error || "Unknown")); } } catch(err) { alert("Invalid file format."); } fileInput.value = ''; }; reader.readAsText(file); }; }
+  const fabAddBtn = document.getElementById('fabAddBtn'); const addModal = document.getElementById('addModal') as HTMLDialogElement; if(fabAddBtn) { fabAddBtn.onclick = () => { addModal.showModal(); setTimeout(() => document.getElementById('taskInput')?.focus(), 100); }; }
+  async function addTask() { const t = (document.getElementById('taskInput') as HTMLInputElement); const c = (document.getElementById('categoryInput') as HTMLInputElement); if(!t.value) return; await fetch(API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ text:t.value, category: c.value, priority:targetPriority }) }); t.value=''; c.value=''; addModal.close(); targetPriority=null; document.getElementById('posIndicator')!.classList.add('hidden'); loadTasks(); }
+  async function toggle(id: number, s: boolean) { if(!s) { await new Promise(r => setTimeout(r, 600)); } await fetch(`${API_URL}/${id}/toggle`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:!s})}); loadTasks(); }
+  async function resetAll() { if(confirm("Start new session? Current stats will be saved to history.")) { await fetch(`${API_URL}/reset`, {method:'POST'}); loadTasks(); } }
   window.remove = async (id) => { if(confirm("Delete?")) { await fetch(`${API_URL}/${id}`, {method:'DELETE'}); loadTasks(); } };
-
-  document.getElementById('addBtn')!.onclick = addTask;
-  document.getElementById('resetBtn')!.onclick = resetAll;
-  
-  // Position Modal Logic
-  const posBtn = document.getElementById('posBtn');
-  const moveTaskBtn = document.getElementById('moveTaskBtn');
-  const posModal = document.getElementById('posModal') as HTMLDialogElement;
-  let isMoveMode = false;
-  document.getElementById('clearPos')!.onclick = () => { targetPriority=null; document.getElementById('posIndicator')!.classList.add('hidden'); };
-
-  function openPosModal(moveMode: boolean) {
-    isMoveMode = moveMode;
-    document.getElementById('posModalTitle')!.innerText = moveMode ? "Move Task Above..." : "Insert New Task Above...";
-    const list = document.getElementById('posList')!; list.innerHTML = '';
-    todos.forEach(t => {
-      if (isMoveMode && t.id === currentId) return;
-      const d = document.createElement('div'); d.className='pos-item'; d.innerText = `\u2B06 ${t.text}`; 
-      d.onclick = async () => {
-        if (isMoveMode) {
-            await fetch(`${API_URL}/${currentId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ priority: t.priority }) });
-            posModal.close(); window.closeModal(); loadTasks();
-        } else {
-            targetPriority = t.priority; 
-            document.getElementById('posTargetName')!.innerText = t.text; 
-            document.getElementById('posIndicator')!.classList.remove('hidden'); 
-            posModal.close();
-        }
-      };
-      list.appendChild(d);
-    });
-    posModal.showModal();
-  }
-  if(posBtn) posBtn.onclick = () => openPosModal(false);
-  if(moveTaskBtn) moveTaskBtn.onclick = () => openPosModal(true);
-
+  document.getElementById('addBtn')!.onclick = addTask; document.getElementById('resetBtn')!.onclick = resetAll;
+  const posBtn = document.getElementById('posBtn'); const moveTaskBtn = document.getElementById('moveTaskBtn'); const posModal = document.getElementById('posModal') as HTMLDialogElement; let isMoveMode = false; document.getElementById('clearPos')!.onclick = () => { targetPriority=null; document.getElementById('posIndicator')!.classList.add('hidden'); };
+  function openPosModal(moveMode: boolean) { isMoveMode = moveMode; document.getElementById('posModalTitle')!.innerText = moveMode ? "Move Task Above..." : "Insert New Task Above..."; const list = document.getElementById('posList')!; list.innerHTML = ''; todos.forEach(t => { if (isMoveMode && t.id === currentId) return; const d = document.createElement('div'); d.className='pos-item'; d.innerText = `\u2B06 ${t.text}`; d.onclick = async () => { if (isMoveMode) { await fetch(`${API_URL}/${currentId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ priority: t.priority }) }); posModal.close(); window.closeModal(); loadTasks(); } else { targetPriority = t.priority; document.getElementById('posTargetName')!.innerText = t.text; document.getElementById('posIndicator')!.classList.remove('hidden'); posModal.close(); } }; list.appendChild(d); }); posModal.showModal(); }
+  if(posBtn) posBtn.onclick = () => openPosModal(false); if(moveTaskBtn) moveTaskBtn.onclick = () => openPosModal(true);
   loadTasks();
-
-  window.toggleDropdown = (e, id) => { e.stopPropagation(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); document.getElementById(`dropdown-${id}`)?.classList.toggle('show'); };
-  window.onclick = (e) => { if (!(e.target as Element).matches('.btn-more')) document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); };
+  window.toggleDropdown = (e, id) => { e.stopPropagation(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); document.getElementById(`dropdown-${id}`)?.classList.toggle('show'); }; window.onclick = (e) => { if (!(e.target as Element).matches('.btn-more')) document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); };
 </script>
 
 <style is:global>
-  /* Base Vars & Reset */
   :root { --bg:#1e1e24; --card:#2b2b36; --accent:#7f5af0; --text:#fffffe; --sub:#94a1b2; --green:#2cb67d; --red:#ef4565; --border:#444; }
-  body { background:var(--bg); color:var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding:20px; }
-  .todo-container { max-width:900px; margin:0 auto; }
+  body { background:var(--bg); color:var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding:0; margin:0; }
+
+  #effectCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+
+  @keyframes red-destruction {
+    0% { transform: scale(1); box-shadow: 0 0 0 transparent; }
+    15% { transform: scale(1.05) rotate(-2deg); background: #500000; box-shadow: 0 0 40px #ff0000; border-color: red; }
+    30% { transform: scale(1.05) rotate(2deg); background: #800000; box-shadow: 0 0 60px #ff0000, inset 0 0 20px red; }
+    45% { transform: scale(1.05) rotate(-1deg); background: #500000; box-shadow: 0 0 40px #ff0000; }
+    100% { transform: scale(1) rotate(0); background: var(--card); opacity: 1; }
+  }
   
-  /* Inputs & Header */
-  .header { display:flex; justify-content:space-between; margin-bottom:20px; align-items:center; flex-wrap:wrap; gap:15px; }
-  .title-group { display:flex; align-items:center; gap:15px; }
-  .header-actions { display:flex; gap:8px; }
-  
-  .input-card { background:var(--card); padding:15px; border-radius:12px; margin-bottom:20px; display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); }
-  .input-row { display:flex; gap:8px; }
+  .destruction-mode {
+      animation: red-destruction 0.6s linear forwards !important;
+      position: relative;
+      z-index: 100;
+  }
+
+  .task-card.done .task-title {
+      text-decoration: line-through;
+      text-decoration-color: var(--red);
+      text-decoration-thickness: 3px;
+      color: var(--sub);
+      transition: all 0.3s;
+  }
+
+  /* MODIFIED: Wrapped Title Logic */
+  .task-main-text {
+      display: flex;
+      flex-wrap: wrap; /* Allows indicator to flow if needed */
+      align-items: center;
+      gap: 8px;
+      white-space: normal; /* Allows text to wrap */
+      overflow: visible;
+      word-break: break-word; /* Breaks long words properly */
+  }
+
+  .todo-container { max-width:100%; margin:0; height: 100vh; display: flex; flex-direction: column; padding: 0; }
+  .fab-btn { position: fixed; bottom: 25px; right: 25px; width: 55px; height: 55px; border-radius: 50%; background: var(--accent); color: white; font-size: 2.5rem; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, background 0.2s; line-height: 1; padding-bottom: 6px; }
+  .fab-btn:hover { transform: scale(1.1); background: #6a4bc9; }
+  .task-list { list-style:none; padding:2px 0 60px 0; flex: 1; overflow-y: auto; margin: 0; }
+  .task-card { background:var(--card); margin-bottom:2px; border-radius:0; padding:8px 12px; display:flex; align-items:center; gap:12px; transition: background 0.2s; min-height: 45px; border-left: 3px solid transparent; border: 1px solid transparent; }
+  .task-card:hover { background:#323240; }
+  .task-card:last-child { margin-bottom: 80px; } 
+  .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width:0; }
+  .task-title { font-size:0.95rem; font-weight:500; }
+  .task-meta { display:flex; gap:4px; margin-top:0px; }
+  .chip { font-size:0.6rem; background:rgba(255,255,255,0.1); padding:0px 5px; border-radius:4px; color:var(--sub); }
+  .icon-indicator { font-size:0.8rem; color:var(--accent); }
+  .cb-container { display:flex; align-items:center; flex-shrink:0; }
+  .big-cb { width:18px; height:18px; accent-color:var(--green); cursor:pointer; }
+  .modal-divider { border: 0; border-top: 1px solid var(--border); margin: 15px 0; }
+  .header-actions-col { display: flex; flex-direction: column; gap: 10px; }
+  .action-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .input-row { display:flex; gap:8px; margin-bottom: 8px; }
   input { flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:10px; color:white; border-radius:6px; outline:none; }
   input:focus { border-color:var(--accent); }
-  
-  .btn-reset { background:var(--card); color:var(--accent); border:1px solid var(--accent); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; }
-  .btn-subtle { background:transparent; color:var(--sub); border:1px solid var(--border); padding:8px 12px; border-radius:8px; cursor:pointer; font-size:0.9rem; transition:0.2s; }
+  .btn-reset { background:var(--card); color:var(--red); border:1px solid var(--red); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 0.85rem;}
+  .btn-subtle { background:transparent; color:var(--sub); border:1px solid var(--border); padding:10px; border-radius:8px; cursor:pointer; font-size:0.9rem; transition:0.2s; }
   .btn-subtle:hover { color:white; border-color:white; }
-  
   .btn-add { background:var(--accent); color:white; border:none; padding:0 20px; border-radius:6px; font-weight:bold; cursor:pointer; }
   .btn-icon { background:rgba(255,255,255,0.05); border:none; width:32px; height:32px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  
-  /* List */
-  .list-header { display:flex; justify-content:space-between; padding:0 15px 5px; color:var(--sub); font-size:0.8rem; text-transform:uppercase; }
-  
-  .col-history { 
-    display: flex;             
-    gap: 6px;                  
-    justify-content: flex-end; 
-    align-items: flex-end;    
-  }
-
-  .task-list { list-style:none; padding:0; }
-  .task-card { background:var(--card); margin-bottom:10px; border-radius:10px; padding:10px 15px; display:flex; align-items:center; gap:15px; transition: background 0.2s; flex-wrap: wrap; }
-  .task-card:hover { background:#323240; }
-  
-  /* Sections */
-  .cb-container { display:flex; align-items:center; flex-shrink:0; }
-  .big-cb { width:20px; height:20px; accent-color:var(--green); cursor:pointer; }
-  .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width:200px; }
-  .task-main-text { display:flex; align-items:center; gap:8px; }
-  .task-title { font-size:1rem; font-weight:500; line-height:1.4; }
-  .task-meta { display:flex; gap:4px; margin-top:2px; }
-  .chip { font-size:0.65rem; background:rgba(255,255,255,0.1); padding:1px 6px; border-radius:4px; color:var(--sub); }
-  .icon-indicator { font-size:0.9rem; color:var(--accent); }
-  
-  /* History Grid */
-  .history-grid { display:flex; gap:6px; align-items:center; }
-  .h-cell { display:flex; flex-direction:column; align-items:center; }
-  .h-box { width:24px; height:24px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .dropdown { position:relative; margin-left:auto; flex-shrink:0; }
+  .btn-more { font-weight:bold; font-size:1.2rem; color:var(--sub); padding: 0 5px; height: auto; width: auto; background: transparent; }
+  .dropdown-content { display:none; position:absolute; right:0; top: 100%; background-color:#23232b; min-width:180px; box-shadow:0 8px 20px rgba(0,0,0,0.8); z-index:999; border-radius:8px; border:1px solid var(--border); overflow:hidden; }
+  .dropdown-content.show { display:block; }
+  .dropdown-content div { padding:10px 14px; cursor:pointer; font-size:0.85rem; display: block;}
+  .dropdown-content div:hover { background:var(--accent); color:white; }
+  .dd-label { font-size: 0.7rem; color: var(--sub); text-transform: uppercase; font-weight: bold; background: rgba(0,0,0,0.2); pointer-events: none; }
+  .dropdown-history-grid { padding: 5px 0; background: rgba(0,0,0,0.1); }
+  .dh-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 14px; cursor: pointer; }
+  .dh-row:hover { background: rgba(255,255,255,0.05); }
+  .dh-date { font-size: 0.75rem; color: var(--sub); font-family: monospace; }
+  .active-header { color: var(--accent); font-weight: bold; }
+  .dd-divider { height: 1px; background: var(--border); margin: 0; padding: 0 !important; }
+  .h-box { width:16px; height:16px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; }
   .h-done { background:var(--green); color:black; }
   .h-miss { background:#383842; }
-  .h-live-done { border:2px solid var(--green); color:var(--green); }
-  .h-live-pending { border:2px dashed #555; color:#555; }
-  
-  .h-col-header { 
-    width: 24px;               
-    text-align: center; 
-    display: flex; 
-    flex-direction: column; 
-    font-size: 0.6rem; 
-    opacity: 0.6;
-    line-height: 1;            
-  }
-  .active-header { opacity:1; color:var(--accent); }
-
-  /* Dropdown */
-  .dropdown { position:relative; margin-left:auto; flex-shrink:0; }
-  .btn-more { font-weight:bold; font-size:1.2rem; color:var(--sub); }
-  .dropdown-content { display:none; position:absolute; right:0; background-color:#23232b; min-width:160px; box-shadow:0 8px 16px rgba(0,0,0,0.5); z-index:10; border-radius:8px; border:1px solid var(--border); overflow:hidden; }
-  .dropdown-content.show { display:block; }
-  .dropdown-content div { padding:12px 16px; cursor:pointer; font-size:0.9rem; }
-  .dropdown-content div:hover { background:var(--accent); color:white; }
-
-  /* Metrics Panel */
+  .h-live-done { border:2px solid var(--green); color:var(--green); width: 14px; height: 14px;}
+  .h-live-pending { border:2px dashed #555; color:#555; width: 14px; height: 14px;}
   .metrics-panel { display:flex; gap:15px; margin-bottom:20px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); }
   .history-edit-mode { flex-direction:column; }
   .history-controls-row { border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:10px; }
   .history-inputs-row { display:flex; gap:15px; }
-  
   .metric-box { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .left-metric { border-right:1px solid var(--border); }
   .metric-box label { font-size:0.7rem; text-transform:uppercase; color:var(--sub); margin-bottom:5px; font-weight:bold; }
@@ -817,20 +465,16 @@ import Layout from '../../layouts/Layout.astro';
   .metric-value { font-size:1.5rem; font-family:monospace; font-weight:bold; min-width:30px; text-align:center; }
   .timer-display { font-size:1.5rem; font-family:monospace; margin-bottom:5px; }
   .timer-controls { display:flex; gap:5px; }
-  
-  /* Inputs in Modal */
   .modal-num-input { font-size:1.2rem; text-align:center; width:120px; padding:5px; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:4px; color:white; font-family:monospace; }
   .btn-save-small { margin-top:10px; background:var(--accent); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; width:100%; }
-
   .btn-circle { width:30px; height:30px; border-radius:50%; border:1px solid var(--sub); background:none; color:white; cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center; transition:0.2s; }
   .btn-circle:hover { background:var(--accent); border-color:var(--accent); }
   .btn-tiny { font-size:0.7rem; padding:4px 8px; border-radius:4px; border:none; background:var(--green); color:black; font-weight:bold; cursor:pointer; }
   .btn-tiny.btn-danger { background:var(--sub); opacity:0.7; }
   .btn-active { background:var(--red) !important; color:white !important; }
-
-  /* Modal */
-  .wide-modal { width:550px; max-width:95vw; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; padding:0; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
-  .wide-modal::backdrop { background:rgba(0,0,0,0.8); }
+  .modal { background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; padding:0; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
+  .wide-modal { width:550px; max-width:95vw; }
+  .modal::backdrop { background:rgba(0,0,0,0.8); }
   .modal-wrapper { display:flex; flex-direction:column; height:100%; }
   .modal-header { padding:15px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); }
   .btn-close-x { background:none; border:none; color:var(--sub); font-size:1.5rem; cursor:pointer; line-height:1; }
@@ -843,8 +487,6 @@ import Layout from '../../layouts/Layout.astro';
   .step-num { color:var(--sub); font-weight:bold; min-width:20px; }
   .cb-label { display:flex; align-items:center; gap:10px; cursor:pointer; color:var(--sub); }
   .cb-label span { font-weight:bold; color:white; }
-
-  /* Edit Elements */
   .items-editor, .steps-editor { background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px; }
   .tags-container { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .edit-tag { background:var(--accent); color:white; padding:4px 10px; border-radius:15px; font-size:0.85rem; display:flex; align-items:center; gap:6px; }
@@ -858,7 +500,6 @@ import Layout from '../../layouts/Layout.astro';
   .btn-dashed { background:transparent; border:1px dashed var(--sub); color:var(--sub); padding:8px; border-radius:6px; cursor:pointer; width:100%; font-size:0.85rem; }
   .save-row { padding-top:15px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
   .btn-save { background:var(--green); color:black; border:none; padding:10px 25px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem; }
-  
   .hidden { display:none !important; }
   #posModal { padding:20px; background:var(--card); color:white; border:1px solid var(--border); border-radius:12px; }
   #posModal::backdrop { background:rgba(0,0,0,0.8); }
@@ -867,11 +508,4 @@ import Layout from '../../layouts/Layout.astro';
   .pos-item:hover { background:var(--accent); }
   .pos-badge { color:#dcb0f5; background:rgba(127,90,240,0.2); padding:8px; border-radius:6px; display:flex; justify-content:space-between; }
   .btn-cancel { background:transparent; border:1px solid var(--border); color:var(--sub); padding:6px 12px; border-radius:6px; cursor:pointer; }
-  
-  @media (max-width: 600px) {
-      .col-history { display:none; }
-      .task-card { align-items:flex-start; padding-bottom:15px; }
-      .title-section { width:auto; flex:1; min-width:0; margin-right:5px; }
-      .history-grid { display:flex !important; width:100%; order:10; justify-content:space-between; margin-top:15px; padding-top:15px; border-top:1px dashed rgba(255,255,255,0.1); }
-  }
 </style>
