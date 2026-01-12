@@ -1,0 +1,457 @@
+---
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{title}</title>
+	</head>
+	<body>
+    <style is:global>
+        :root {
+            --bg: #1e1e24;
+            --card: #2b2b36; 
+            --accent: #7f5af0; 
+            --danger: #ef4565;
+            --success: #2cb67d;
+            --text: #fffffe; 
+            --sub: #94a1b2; 
+            --border: #444;
+            --folder: #ffca28;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+        }
+
+        .gallery-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem 3rem 1rem;
+        }
+
+        /* Navigation */
+        .vault-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 10;
+        }
+
+        .breadcrumb-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .breadcrumb-item { cursor: pointer; color: var(--accent); }
+        .breadcrumb-item:hover { opacity: 0.8; }
+        .breadcrumb-separator { color: var(--sub); }
+
+        .nav-actions { display: flex; gap: 10px; }
+
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+        .btn-success { background: var(--success); color: white; }
+        .btn:disabled { opacity: 0.5; cursor: wait; }
+
+        /* Grid */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* Card Styles */
+        .frame-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px; 
+            height: 280px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .frame-card:hover { transform: translateY(-4px); border-color: var(--accent); }
+
+        .preview-area {
+            height: 150px;
+            width: 100%;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .preview-area img { width: 100%; height: 100%; object-fit: cover; }
+        .file-icon { font-size: 3.5rem; }
+        .folder-icon { color: var(--folder); }
+
+        .card-title { 
+            font-weight: 500; 
+            text-align: center;
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis;
+            margin-bottom: 15px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: auto;
+        }
+
+        .btn-action {
+            flex: 1;
+            padding: 8px 4px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--sub);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-action:hover { background: var(--border); color: white; }
+        .btn-delete:hover { background: var(--danger); border-color: var(--danger); color: white; }
+
+        .loading-state { grid-column: 1/-1; text-align: center; padding: 4rem; color: var(--sub); }
+        .hidden { display: none; }
+        
+        /* Utility for groups */
+        .btn-group { display: flex; gap: 5px; padding-right: 15px; border-right: 1px solid var(--border); margin-right: 10px; }
+    </style>
+
+    <main class="gallery-container">
+        <nav class="vault-nav">
+            <div class="breadcrumb-container" id="breadcrumb"></div>
+            
+            <div class="nav-actions">
+                <div class="btn-group">
+                    <button class="btn btn-secondary" id="downloadDbBtn" title="Download entire DB as JSON">⬇ DB</button>
+                    <button class="btn btn-secondary" id="importDbBtn" title="Import JSON to current folder">⬆ Import</button>
+                    <input type="file" id="importInput" class="hidden" accept=".json" />
+                </div>
+
+                <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
+                <input type="file" id="fileInput" class="hidden" />
+                <button class="btn btn-primary" id="uploadBtn">⬆ Upload File</button>
+            </div>
+        </nav>
+
+        <div id="gallery" class="gallery-grid"></div>
+    </main>
+
+<script>
+      const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
+        const BACKUP_URL = `${BASE_URL}/vault/backup`; 
+        const IMPORT_URL = `${BASE_URL}/vault/import`; 
+        
+        // Navigation State
+        let currentFolderId = null; 
+        let pathStack = []; 
+
+        const gallery = document.getElementById('gallery');
+        const breadcrumb = document.getElementById('breadcrumb');
+        
+        // UI Elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const newFolderBtn = document.getElementById('newFolderBtn');
+        const downloadDbBtn = document.getElementById('downloadDbBtn');
+        const importDbBtn = document.getElementById('importDbBtn');
+        const importInput = document.getElementById('importInput');
+
+        // --- Core Functions ---
+
+        async function loadVault() {
+            if (!gallery) return;
+            gallery.innerHTML = '<div class="loading-state">Loading items...</div>';
+            try {
+                const url = currentFolderId ? `${API_URL}?parentId=${currentFolderId}` : API_URL;
+                const res = await fetch(url);
+                const data = await res.json();
+                gallery.innerHTML = ''; 
+                if (!data || data.length === 0) {
+                    gallery.innerHTML = `<div class="loading-state">This folder is empty.</div>`;
+                } else {
+                    data.forEach(item => renderItem(item));
+                }
+            } catch (err) {
+                console.error(err);
+                gallery.innerHTML = `<div class="loading-state" style="color: var(--danger);">Error connecting to server.</div>`;
+            }
+            renderBreadcrumbs();
+        }
+
+        function renderItem(item) {
+            const card = document.createElement('div');
+            card.className = 'frame-card';
+            const isFolder = item.type === 'folder';
+
+            if (isFolder) {
+                card.onclick = () => navigateInto(item.id, item.name);
+                card.style.cursor = 'pointer';
+                card.innerHTML = `
+                    <div class="preview-area"><span class="file-icon folder-icon">📁</span></div>
+                    <div class="card-title">${item.name}</div>
+                    <div class="card-actions">
+                        <button class="btn-action" onclick="event.stopPropagation(); window.renameItem('${item.id}', '${item.name}')">✎</button>
+                        <button class="btn-action btn-delete" onclick="event.stopPropagation(); window.deleteItem('${item.id}')">🗑</button>
+                    </div>
+                `;
+            } else {
+                const isImage = item.value?.startsWith('data:image');
+                const previewHtml = isImage 
+                    ? `<img src="${item.value}" alt="${item.name}" loading="lazy" />` 
+                    : `<span class="file-icon">📄</span>`;
+
+                card.innerHTML = `
+                    <div class="preview-area">${previewHtml}</div>
+                    <div class="card-title" title="${item.name}">${item.name}</div>
+                    <div class="card-actions">
+                        <button class="btn-action" onclick="window.renameItem('${item.id}', '${item.name}')">✎</button>
+                        <a href="${item.value}" download="${item.name}" class="btn-action" style="text-decoration:none;">💾</a>
+                        <button class="btn-action btn-delete" onclick="window.deleteItem('${item.id}')">🗑</button>
+                    </div>
+                `;
+            }
+            gallery.appendChild(card);
+        }
+
+        // --- Navigation Logic ---
+        function navigateInto(id, name) {
+            currentFolderId = id;
+            pathStack.push({ id, name });
+            loadVault();
+        }
+        window.navigateBack = (index) => {
+            if (index === -1) {
+                currentFolderId = null;
+                pathStack = [];
+            } else {
+                pathStack = pathStack.slice(0, index + 1);
+                currentFolderId = pathStack[index].id;
+            }
+            loadVault();
+        };
+        function renderBreadcrumbs() {
+            if (!breadcrumb) return;
+            let html = `<span class="breadcrumb-item" onclick="window.navigateBack(-1)">🔐 Vault</span>`;
+            pathStack.forEach((folder, idx) => {
+                html += ` <span class="breadcrumb-separator">/</span> `;
+                html += `<span class="breadcrumb-item" onclick="window.navigateBack(${idx})">${folder.name}</span>`;
+            });
+            breadcrumb.innerHTML = html;
+        }
+
+        // --- EXPORT ---
+        downloadDbBtn.addEventListener('click', async () => {
+            downloadDbBtn.textContent = '...';
+            try {
+                const res = await fetch(BACKUP_URL);
+                if (!res.ok) throw new Error("Export failed");
+                const json = await res.json();
+                const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'vault.json';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert("Failed to download vault.");
+                console.error(err);
+            }
+            downloadDbBtn.textContent = '⬇ DB';
+        });
+
+        // --- IMPORT WITH CHUNKING ---
+        importDbBtn.addEventListener('click', () => importInput.click());
+
+        importInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!confirm(`Import items from "${file.name}" into current folder?`)) {
+                importInput.value = '';
+                return;
+            }
+
+            importDbBtn.textContent = "Processing...";
+            importDbBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.readAsText(file);
+            
+            reader.onload = async (evt) => {
+                try {
+                    const rawItems = JSON.parse(evt.target.result);
+                    
+                    if (!Array.isArray(rawItems)) throw new Error("File must be a JSON array");
+
+                    // 1. Prepare ID Mapping (Client Side)
+                    const idMap = new Map();
+                    // Generate new UUIDs for every item in the import
+                    rawItems.forEach(item => {
+                        idMap.set(item.id, crypto.randomUUID());
+                    });
+
+                    // 2. Transform items with New IDs
+                    const processedItems = rawItems.map(item => {
+                        let newParentId = null;
+
+                        // Case A: Parent is inside this import list
+                        if (item.parent_id && idMap.has(item.parent_id)) {
+                            newParentId = idMap.get(item.parent_id);
+                        } 
+                        // Case B: Parent was external (root or old parent), map to current folder
+                        else {
+                            newParentId = currentFolderId || null;
+                        }
+
+                        return {
+                            id: idMap.get(item.id), // The NEW ID
+                            name: item.name,
+                            type: item.type,
+                            value: item.value, // Base64 data
+                            parent_id: newParentId,
+                            created_at: new Date().toISOString()
+                        };
+                    });
+
+                    // 3. Send in Chunks (Batch size 5 to avoid Payload Too Large)
+                    const CHUNK_SIZE = 5; 
+                    const totalChunks = Math.ceil(processedItems.length / CHUNK_SIZE);
+
+                    for (let i = 0; i < processedItems.length; i += CHUNK_SIZE) {
+                        const chunk = processedItems.slice(i, i + CHUNK_SIZE);
+                        const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
+                        
+                        importDbBtn.textContent = `Uploading ${chunkNum}/${totalChunks}...`;
+
+                        const res = await fetch(IMPORT_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items: chunk })
+                        });
+
+                        if (!res.ok) {
+                            const errText = await res.text();
+                            throw new Error(`Chunk ${chunkNum} failed: ${errText}`);
+                        }
+                    }
+
+                    alert(`Success! Imported ${processedItems.length} items.`);
+                    loadVault(); 
+
+                } catch (error) {
+                    console.error("Import Error:", error);
+                    alert("Import Failed: " + error.message);
+                }
+                
+                importDbBtn.textContent = "⬆ Import";
+                importDbBtn.disabled = false;
+                importInput.value = '';
+            };
+        });
+
+        // --- Standard File Operations ---
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = "Encoding...";
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const payload = {
+                    name: file.name,
+                    value: reader.result,
+                    type: 'file',
+                    parent_id: currentFolderId
+                };
+                const res = await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) alert("Upload failed.");
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = "⬆ Upload File";
+                fileInput.value = '';
+                loadVault();
+            };
+        });
+
+        newFolderBtn.addEventListener('click', async () => {
+            const name = prompt("Enter folder name:");
+            if (!name) return;
+            await fetch(API_URL, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, type: 'folder', parent_id: currentFolderId })
+            });
+            loadVault();
+        });
+
+        window.renameItem = async (id, oldName) => {
+            const newName = prompt("Rename to:", oldName);
+            if (!newName || newName === oldName) return;
+            const res = await fetch(`${API_URL}/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+            if (res.ok) loadVault();
+        };
+
+        window.deleteItem = async (id) => {
+            if (!confirm("Delete this item permanently?")) return;
+            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            if (res.ok) loadVault();
+        };
+
+        loadVault();
+    </script>
+	</body>
+</html>

@@ -1,8 +1,19 @@
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
+import react from '@astrojs/react';
+import tailwind from '@astrojs/tailwind';
+// REMOVE: import node from '@astrojs/node'; 
+import cloudflare from '@astrojs/cloudflare'; // <--- ADD THIS
 
 export default defineConfig({
+  output: 'server', 
+  
+  // CHANGE THIS SECTION:
+  adapter: cloudflare({
+    imageService: 'cloudflare', // Optional: Use Cloudflare for image optimization
+  }),
+
   integrations: [
     AstroPWA({
       registerType: 'autoUpdate',
@@ -30,9 +41,11 @@ export default defineConfig({
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt}']
       },
       devOptions: {
-        enabled: true, // Allows you to test PWA in dev mode
+        enabled: true,
         navigateFallbackAllowlist: [/^\/404$/]
       }
-    })
+    }), 
+    react(),
+    tailwind()
   ]
 });

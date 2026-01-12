@@ -1,0 +1,224 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// We get the target PDF URL from the query string
+const url = Astro.url.searchParams.get('url');
+const title = Astro.url.searchParams.get('title') || 'PDF Viewer';
+
+if (!url) return Astro.redirect('/');
+---
+
+<Layout title={title}>
+  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <div class="h-screen flex flex-col bg-neutral-900 text-white font-sans overflow-hidden">
+    
+    <header class="h-14 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 shadow-md z-20">
+      <div class="flex items-center gap-4 min-w-0">
+        <button onclick="history.back()" class="text-neutral-400 hover:text-white transition flex items-center gap-1 text-sm shrink-0">
+          <span>←</span> <span class="hidden sm:inline">Back</span>
+        </button>
+        <h1 class="font-medium truncate text-sm border-l border-neutral-800 pl-4">{title}</h1>
+      </div>
+
+      <div id="controls" class="hidden items-center gap-2">
+        <button id="prev" class="p-1 hover:bg-white/10 rounded disabled:opacity-30">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        
+        <span class="text-xs font-mono text-neutral-400">
+            <span id="page_num">--</span> / <span id="page_count">--</span>
+        </span>
+
+        <button id="next" class="p-1 hover:bg-white/10 rounded disabled:opacity-30">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+
+        <div class="w-px h-4 bg-neutral-700 mx-2 hidden sm:block"></div>
+
+        <button id="zoom_out" class="p-1 hover:bg-white/10 rounded hidden sm:block">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></svg>
+        </button>
+        <button id="zoom_in" class="p-1 hover:bg-white/10 rounded hidden sm:block">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span id="save-status" class="text-xs text-neutral-500 transition-opacity opacity-0">Saved</span>
+        <a href={url} download class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded transition shrink-0 whitespace-nowrap">
+            Download
+        </a>
+      </div>
+    </header>
+
+    <main class="flex-1 bg-neutral-800 relative overflow-auto flex justify-center p-4 sm:p-8" id="canvas-container">
+      <div id="loading-spinner" class="absolute inset-0 flex items-center justify-center bg-neutral-900 z-10">
+        <div class="flex flex-col items-center gap-3">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            <p class="text-xs text-neutral-400">Loading Document...</p>
+        </div>
+      </div>
+      
+      <div id="error-message" class="hidden absolute inset-0 flex items-center justify-center bg-neutral-900 z-10">
+        <div class="text-center p-4">
+            <p class="text-red-400 font-medium mb-2">Failed to load PDF</p>
+            <p class="text-xs text-neutral-500 mb-4">Check your connection or file permissions</p>
+            <a href={url} class="text-xs bg-white text-black px-4 py-2 rounded">Download Instead</a>
+        </div>
+      </div>
+
+      <canvas id="the-canvas" class="shadow-2xl"></canvas>
+    </main>
+  </div>
+</Layout>
+
+<script define:vars={{ url }}>
+  // CONFIGURATION: Points to your Hono backend
+  // Note: We added '/courses' to match your main app.route() prefix
+  const API_BASE = 'http://127.0.0.1:8787/courses'; 
+
+  window.onload = async function() {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let pdfDoc = null,
+        pageNum = 1,
+        pageRendering = false,
+        pageNumPending = null,
+        scale = 1.2,
+        canvas = document.getElementById('the-canvas'),
+        ctx = canvas.getContext('2d'),
+        saveTimeout = null;
+
+    // --- 1. CONNECT TO HONO BACKEND ---
+
+    async function loadProgress() {
+      try {
+        // Fetch last saved page
+        const res = await fetch(`${API_BASE}/utils/progress?url=${encodeURIComponent(url)}`);
+        if (!res.ok) throw new Error('Progress fetch failed');
+        
+        const data = await res.json();
+        if (data.page_number) {
+            pageNum = data.page_number;
+            console.log("Resuming from page", pageNum);
+        }
+      } catch (e) {
+        console.warn("Could not load progress (likely first open or API error)", e);
+      }
+    }
+
+    function saveProgress(currentPage) {
+      const status = document.getElementById('save-status');
+      status.textContent = "Saving...";
+      status.classList.remove('opacity-0');
+
+      if (saveTimeout) clearTimeout(saveTimeout);
+      
+      // Debounce saving to avoid spamming the DB
+      saveTimeout = setTimeout(async () => {
+        try {
+          await fetch(`${API_BASE}/utils/progress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url, page: currentPage })
+          });
+          status.textContent = "Saved";
+          setTimeout(() => status.classList.add('opacity-0'), 2000);
+        } catch (e) {
+          status.textContent = "Error saving";
+        }
+      }, 1000);
+    }
+
+    // --- 2. RENDER LOGIC ---
+
+    function renderPage(num) {
+      pageRendering = true;
+      
+      pdfDoc.getPage(num).then(function(page) {
+        const containerWidth = document.getElementById('canvas-container').clientWidth - 40;
+        const viewport = page.getViewport({scale: scale});
+        const outputScale = window.devicePixelRatio || 1;
+
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + "px";
+        canvas.style.height = Math.floor(viewport.height) + "px";
+
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+        const renderContext = {
+          canvasContext: ctx,
+          transform: transform,
+          viewport: viewport
+        };
+        
+        page.render(renderContext).promise.then(function() {
+          pageRendering = false;
+          document.getElementById('loading-spinner').classList.add('hidden');
+          document.getElementById('controls').classList.remove('hidden');
+          document.getElementById('controls').classList.add('flex');
+
+          if (pageNumPending !== null) {
+            renderPage(pageNumPending);
+            pageNumPending = null;
+          }
+        });
+      });
+
+      document.getElementById('page_num').textContent = num;
+      document.getElementById('prev').disabled = num <= 1;
+      document.getElementById('next').disabled = num >= pdfDoc.numPages;
+
+      // Trigger Save
+      saveProgress(num);
+    }
+
+    function queueRenderPage(num) {
+      if (pageRendering) {
+        pageNumPending = num;
+      } else {
+        renderPage(num);
+      }
+    }
+
+    function onPrevPage() {
+      if (pageNum <= 1) return;
+      pageNum--;
+      queueRenderPage(pageNum);
+    }
+
+    function onNextPage() {
+      if (pageNum >= pdfDoc.numPages) return;
+      pageNum++;
+      queueRenderPage(pageNum);
+    }
+
+    // --- 3. INITIALIZATION ---
+
+    document.getElementById('prev').addEventListener('click', onPrevPage);
+    document.getElementById('next').addEventListener('click', onNextPage);
+    document.getElementById('zoom_in').addEventListener('click', () => { scale += 0.2; queueRenderPage(pageNum); });
+    document.getElementById('zoom_out').addEventListener('click', () => { if(scale>0.6) scale -= 0.2; queueRenderPage(pageNum); });
+
+    try {
+        // Step 1: Check where we left off
+        await loadProgress(); 
+
+        // Step 2: Construct the Proxy URL
+        // We use the same API_BASE here to fetch the PDF through the proxy
+        const proxyUrl = `${API_BASE}/utils/proxy-pdf?url=${encodeURIComponent(url)}`;
+        
+        // Step 3: Load the Document
+        pdfDoc = await pdfjsLib.getDocument(proxyUrl).promise;
+        document.getElementById('page_count').textContent = pdfDoc.numPages;
+        renderPage(pageNum);
+
+    } catch (error) {
+        console.error('Error loading PDF:', error);
+        document.getElementById('loading-spinner').classList.add('hidden');
+        document.getElementById('error-message').classList.remove('hidden');
+    }
+  }
+</script>

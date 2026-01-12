@@ -1,457 +1,326 @@
 ---
-interface Props {
-	title: string;
-}
+import Layout from '../layouts/Layout.astro';
+  const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
+  const API_URL = `${BASE_URL}/courses`; 
 
-const { title } = Astro.props;
+let courses = [];
+
+try {
+  const res = await fetch(API_URL);
+  if (res.ok) {
+    courses = await res.json();
+  }
+} catch (e) {
+  console.error("Backend error:", e);
+}
 ---
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<title>{title}</title>
-	</head>
-	<body>
-    <style is:global>
-        :root {
-            --bg: #1e1e24;
-            --card: #2b2b36; 
-            --accent: #7f5af0; 
-            --danger: #ef4565;
-            --success: #2cb67d;
-            --text: #fffffe; 
-            --sub: #94a1b2; 
-            --border: #444;
-            --folder: #ffca28;
-        }
+<Layout title="My Learning Path">
+  <main class="min-h-screen bg-neutral-900 text-white p-8 font-sans relative">
+    
+    <div class="flex justify-between items-center mb-12">
+      <h1 class="text-3xl font-bold tracking-tight">Available Courses</h1>
+      <button id="openModalBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold transition shadow-lg flex items-center gap-2">
+        <span>+</span> Add Course
+      </button>
+    </div>
 
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            margin: 0;
-        }
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+      {courses.map((course: any) => (
+        <div class="group relative block">
+          
+          {/* Edit / Delete Buttons */}
+          <div class="absolute top-4 right-4 z-30 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button class="bg-neutral-800/80 hover:bg-blue-600 text-white p-2 rounded-full backdrop-blur-sm border border-neutral-600 transition-colors btn-edit"
+              data-course={JSON.stringify(course)}>
+              ✏️
+            </button>
+            <button class="bg-neutral-800/80 hover:bg-red-600 text-white p-2 rounded-full backdrop-blur-sm border border-neutral-600 transition-colors btn-delete"
+              data-id={course.id}>
+              🗑️
+            </button>
+          </div>
 
-        .gallery-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem 3rem 1rem;
-        }
-
-        /* Navigation */
-        .vault-nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.5rem 0;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            background: var(--bg);
-            z-index: 10;
-        }
-
-        .breadcrumb-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-
-        .breadcrumb-item { cursor: pointer; color: var(--accent); }
-        .breadcrumb-item:hover { opacity: 0.8; }
-        .breadcrumb-separator { color: var(--sub); }
-
-        .nav-actions { display: flex; gap: 10px; }
-
-        /* Buttons */
-        .btn {
-            padding: 0.6rem 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            border: none;
-            transition: all 0.2s;
-            font-size: 0.9rem;
-        }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-        .btn-success { background: var(--success); color: white; }
-        .btn:disabled { opacity: 0.5; cursor: wait; }
-
-        /* Grid */
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 1.5rem;
-        }
-
-        /* Card Styles */
-        .frame-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px; 
-            height: 280px;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .frame-card:hover { transform: translateY(-4px); border-color: var(--accent); }
-
-        .preview-area {
-            height: 150px;
-            width: 100%;
-            background: rgba(0,0,0,0.2);
-            border-radius: 8px;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        
-        .preview-area img { width: 100%; height: 100%; object-fit: cover; }
-        .file-icon { font-size: 3.5rem; }
-        .folder-icon { color: var(--folder); }
-
-        .card-title { 
-            font-weight: 500; 
-            text-align: center;
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis;
-            margin-bottom: 15px;
-        }
-
-        .card-actions {
-            display: flex;
-            gap: 5px;
-            margin-top: auto;
-        }
-
-        .btn-action {
-            flex: 1;
-            padding: 8px 4px;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-            background: transparent;
-            color: var(--sub);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .btn-action:hover { background: var(--border); color: white; }
-        .btn-delete:hover { background: var(--danger); border-color: var(--danger); color: white; }
-
-        .loading-state { grid-column: 1/-1; text-align: center; padding: 4rem; color: var(--sub); }
-        .hidden { display: none; }
-        
-        /* Utility for groups */
-        .btn-group { display: flex; gap: 5px; padding-right: 15px; border-right: 1px solid var(--border); margin-right: 10px; }
-    </style>
-
-    <main class="gallery-container">
-        <nav class="vault-nav">
-            <div class="breadcrumb-container" id="breadcrumb"></div>
-            
-            <div class="nav-actions">
-                <div class="btn-group">
-                    <button class="btn btn-secondary" id="downloadDbBtn" title="Download entire DB as JSON">⬇ DB</button>
-                    <button class="btn btn-secondary" id="importDbBtn" title="Import JSON to current folder">⬆ Import</button>
-                    <input type="file" id="importInput" class="hidden" accept=".json" />
+          <a href={`/course/${course.id}`}>
+            <div class="relative bg-neutral-800 border-[12px] border-neutral-700 rounded-[2.5rem] h-64 shadow-2xl transition-transform duration-300 group-hover:-translate-y-2 overflow-hidden">
+              <div class="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none z-20"></div>
+              <div class="h-full w-full bg-gradient-to-br from-neutral-800 to-black p-6 flex flex-col items-center justify-center text-center relative z-10">
+                <h2 class="text-2xl font-bold text-white mb-2">{course.title}</h2>
+                <p class="text-neutral-400 text-sm line-clamp-2">{course.description}</p>
+                <div class="mt-6 px-5 py-2 bg-neutral-700 rounded-full text-xs font-bold uppercase group-hover:bg-blue-600 transition-colors">
+                  Open App
                 </div>
-
-                <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
-                <input type="file" id="fileInput" class="hidden" />
-                <button class="btn btn-primary" id="uploadBtn">⬆ Upload File</button>
+              </div>
             </div>
-        </nav>
+          </a>
+        </div>
+      ))}
+    </div>
 
-        <div id="gallery" class="gallery-grid"></div>
-    </main>
+    {courses.length === 0 && (
+      <div class="text-center text-neutral-500 mt-20">
+        <p>No courses found. Click "Add Course" to start.</p>
+      </div>
+    )}
+
+    {/* Modal */}
+    <div id="courseModal" class="fixed inset-0 z-50 hidden">
+      <div id="modalBackdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"></div>
+      
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-neutral-800 w-full max-w-lg rounded-2xl border border-neutral-700 shadow-2xl transform transition-all scale-100 p-8 relative">
+          
+          <button id="closeModalBtn" class="absolute top-4 right-4 text-neutral-400 hover:text-white">✕</button>
+
+          <h2 id="modalTitle" class="text-2xl font-bold mb-6">Create New Course</h2>
+
+          <form id="courseForm" class="space-y-5">
+            <input type="hidden" name="id" id="courseId" />
+
+            <div>
+              <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">Title</label>
+              <input type="text" name="title" id="inpTitle" required class="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 focus:border-blue-500 outline-none transition text-white" placeholder="e.g. React Mastery" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">Description</label>
+              <textarea name="description" id="inpDesc" rows="3" class="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 focus:border-blue-500 outline-none transition text-white" placeholder="Course details..."></textarea>
+            </div>
+
+            <div class="pt-4 border-t border-neutral-700">
+              <div class="flex justify-between items-center mb-4">
+                <label class="text-xs font-bold text-neutral-500 uppercase">Content Links</label>
+                <div class="flex gap-2">
+                  <button type="button" id="btnVideo" class="text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 px-3 py-1 rounded border border-red-900/50 transition">+ Video</button>
+                  <button type="button" id="btnPdf" class="text-xs bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 px-3 py-1 rounded border border-blue-900/50 transition">+ PDF</button>
+                </div>
+              </div>
+              
+              <div id="sectionContainer" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                <div class="text-xs text-neutral-600 italic text-center py-2" id="emptyMsg">No links added yet</div>
+              </div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-4 transition shadow-lg shadow-blue-900/20">
+              Publish Course
+            </button>
+          </form>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+</Layout>
 
 <script>
-      const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
-        const BACKUP_URL = `${BASE_URL}/vault/backup`; 
-        const IMPORT_URL = `${BASE_URL}/vault/import`; 
+  // ==========================================
+  // CLIENT-SIDE LOGIC
+  // ==========================================
+  
+  // Global state for rendering (initial load)
+  let sections = []; 
+
+  // DOM Elements
+  const modal = document.getElementById('courseModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const submitBtn = document.getElementById('submitBtn');
+  const form = document.getElementById('courseForm') as HTMLFormElement;
+  const sectionContainer = document.getElementById('sectionContainer');
+  const emptyMsg = document.getElementById('emptyMsg');
+  
+  // Inputs
+  const inpId = document.getElementById('courseId') as HTMLInputElement;
+  const inpTitle = document.getElementById('inpTitle') as HTMLInputElement;
+  const inpDesc = document.getElementById('inpDesc') as HTMLTextAreaElement;
+
+  // --- 1. Modal Logic ---
+  const toggleModal = (show) => {
+    if(show) modal.classList.remove('hidden');
+    else modal.classList.add('hidden');
+  };
+
+  const resetForm = () => {
+    form.reset();
+    inpId.value = "";
+    sections = [];
+    modalTitle.textContent = "Create New Course";
+    submitBtn.textContent = "Publish Course";
+    renderSections();
+  };
+
+  document.getElementById('openModalBtn').addEventListener('click', () => {
+    resetForm();
+    toggleModal(true);
+  });
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const courseStr = (btn as HTMLElement).dataset.course;
+      const course = JSON.parse(courseStr);
+      
+      inpId.value = course.id;
+      inpTitle.value = course.title;
+      inpDesc.value = course.description;
+      
+      // Handle parsing if it came back as a string, otherwise use array
+      if (typeof course.sections === 'string') {
+          try { sections = JSON.parse(course.sections); } catch(e) { sections = []; }
+      } else {
+          sections = course.sections || [];
+      }
+      
+      modalTitle.textContent = "Edit Course";
+      submitBtn.textContent = "Save Changes";
+      renderSections();
+      toggleModal(true);
+    });
+  });
+
+  document.getElementById('closeModalBtn').addEventListener('click', () => toggleModal(false));
+  document.getElementById('modalBackdrop').addEventListener('click', () => toggleModal(false));
+
+  // --- 2. Delete Logic ---
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if(!confirm("Are you sure you want to delete this course?")) return;
+      
+      const id = (btn as HTMLElement).dataset.id;
+      const originalText = btn.textContent;
+      btn.textContent = "⏳";
+
+      try {
+        const res = await fetch(`http://localhost:8787/courses/${id}`, { method: 'DELETE' });
+        if(res.ok) window.location.reload();
+        else alert("Failed to delete");
+      } catch(err) { 
+        console.error(err); 
+        alert("Delete failed");
+      } finally {
+        btn.textContent = originalText;
+      }
+    });
+  });
+
+  // --- 3. Dynamic Sections Logic ---
+  function renderSections() {
+    // Clear current list in DOM (keep emptyMsg)
+    Array.from(sectionContainer.children).forEach(child => {
+        if(child.id !== 'emptyMsg') child.remove();
+    });
+
+    if(sections.length > 0) emptyMsg.classList.add('hidden');
+    else emptyMsg.classList.remove('hidden');
+
+    const html = sections.map((s, i) => `
+      <div class="section-row flex gap-2 items-center bg-neutral-900 p-2 rounded border border-neutral-700 animate-fade-in">
+        <input type="hidden" class="inp-type" value="${s.type}" />
         
-        // Navigation State
-        let currentFolderId = null; 
-        let pathStack = []; 
-
-        const gallery = document.getElementById('gallery');
-        const breadcrumb = document.getElementById('breadcrumb');
+        <span class="text-[10px] font-bold uppercase w-10 text-center ${s.type === 'video' ? 'text-red-400' : 'text-blue-400'}">
+            ${s.type === 'video' ? 'VIDEO' : 'PDF'}
+        </span>
         
-        // UI Elements
-        const fileInput = document.getElementById('fileInput');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const newFolderBtn = document.getElementById('newFolderBtn');
-        const downloadDbBtn = document.getElementById('downloadDbBtn');
-        const importDbBtn = document.getElementById('importDbBtn');
-        const importInput = document.getElementById('importInput');
+        <input type="text" placeholder="Label" value="${s.label || ''}"
+               class="inp-label bg-transparent border-b border-neutral-800 focus:border-blue-500 outline-none text-xs w-24 text-white px-1 py-1 transition-colors" />
+               
+        <input type="text" placeholder="URL" value="${s.url || ''}"
+               class="inp-url bg-transparent border-b border-neutral-800 focus:border-blue-500 outline-none text-xs flex-1 text-neutral-300 px-1 py-1 transition-colors" />
+               
+        <button type="button" class="btn-remove text-neutral-600 hover:text-red-400 px-1">×</button>
+      </div>
+    `).join('');
+    
+    sectionContainer.insertAdjacentHTML('beforeend', html);
 
-        // --- Core Functions ---
+    // Attach Remove Listeners to new elements
+    sectionContainer.querySelectorAll('.btn-remove').forEach((btn, index) => {
+        btn.addEventListener('click', () => {
+            sections.splice(index, 1);
+            renderSections();
+        });
+    });
+  }
 
-        async function loadVault() {
-            if (!gallery) return;
-            gallery.innerHTML = '<div class="loading-state">Loading items...</div>';
-            try {
-                const url = currentFolderId ? `${API_URL}?parentId=${currentFolderId}` : API_URL;
-                const res = await fetch(url);
-                const data = await res.json();
-                gallery.innerHTML = ''; 
-                if (!data || data.length === 0) {
-                    gallery.innerHTML = `<div class="loading-state">This folder is empty.</div>`;
-                } else {
-                    data.forEach(item => renderItem(item));
-                }
-            } catch (err) {
-                console.error(err);
-                gallery.innerHTML = `<div class="loading-state" style="color: var(--danger);">Error connecting to server.</div>`;
-            }
-            renderBreadcrumbs();
+  document.getElementById('btnVideo').addEventListener('click', () => {
+    sections.push({ type: 'video', url: '', label: '' });
+    renderSections();
+  });
+
+  document.getElementById('btnPdf').addEventListener('click', () => {
+    sections.push({ type: 'pdf', url: '', label: '' });
+    renderSections();
+  });
+
+  // --- 4. Form Submission ---
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = "Processing...";
+    (submitBtn as HTMLButtonElement).disabled = true;
+
+    // --- CRITICAL FIX: SCRAPE DOM FOR LATEST VALUES ---
+    // Instead of relying on the 'sections' array state (which might be stale),
+    // we read exactly what is in the input boxes right now.
+    const freshSections = [];
+    document.querySelectorAll('.section-row').forEach(row => {
+        const type = (row.querySelector('.inp-type') as HTMLInputElement).value;
+        const label = (row.querySelector('.inp-label') as HTMLInputElement).value;
+        const url = (row.querySelector('.inp-url') as HTMLInputElement).value;
+
+        // Only add if URL is not empty
+        if(url && url.trim() !== "") {
+            freshSections.push({ type, label, url });
         }
+    });
+    // --------------------------------------------------
 
-        function renderItem(item) {
-            const card = document.createElement('div');
-            card.className = 'frame-card';
-            const isFolder = item.type === 'folder';
+    const courseId = inpId.value;
+    const isEdit = !!courseId;
+    
+    const payload = {
+        title: inpTitle.value,
+        description: inpDesc.value,
+        sections: freshSections // Use the fresh data!
+    };
 
-            if (isFolder) {
-                card.onclick = () => navigateInto(item.id, item.name);
-                card.style.cursor = 'pointer';
-                card.innerHTML = `
-                    <div class="preview-area"><span class="file-icon folder-icon">📁</span></div>
-                    <div class="card-title">${item.name}</div>
-                    <div class="card-actions">
-                        <button class="btn-action" onclick="event.stopPropagation(); window.renameItem('${item.id}', '${item.name}')">✎</button>
-                        <button class="btn-action btn-delete" onclick="event.stopPropagation(); window.deleteItem('${item.id}')">🗑</button>
-                    </div>
-                `;
-            } else {
-                const isImage = item.value?.startsWith('data:image');
-                const previewHtml = isImage 
-                    ? `<img src="${item.value}" alt="${item.name}" loading="lazy" />` 
-                    : `<span class="file-icon">📄</span>`;
+    const url = isEdit 
+        ? `http://localhost:8787/courses/${courseId}`
+        : `http://localhost:8787/courses`;
+    
+    const method = isEdit ? 'PUT' : 'POST';
 
-                card.innerHTML = `
-                    <div class="preview-area">${previewHtml}</div>
-                    <div class="card-title" title="${item.name}">${item.name}</div>
-                    <div class="card-actions">
-                        <button class="btn-action" onclick="window.renameItem('${item.id}', '${item.name}')">✎</button>
-                        <a href="${item.value}" download="${item.name}" class="btn-action" style="text-decoration:none;">💾</a>
-                        <button class="btn-action btn-delete" onclick="window.deleteItem('${item.id}')">🗑</button>
-                    </div>
-                `;
-            }
-            gallery.appendChild(card);
-        }
-
-        // --- Navigation Logic ---
-        function navigateInto(id, name) {
-            currentFolderId = id;
-            pathStack.push({ id, name });
-            loadVault();
-        }
-        window.navigateBack = (index) => {
-            if (index === -1) {
-                currentFolderId = null;
-                pathStack = [];
-            } else {
-                pathStack = pathStack.slice(0, index + 1);
-                currentFolderId = pathStack[index].id;
-            }
-            loadVault();
-        };
-        function renderBreadcrumbs() {
-            if (!breadcrumb) return;
-            let html = `<span class="breadcrumb-item" onclick="window.navigateBack(-1)">🔐 Vault</span>`;
-            pathStack.forEach((folder, idx) => {
-                html += ` <span class="breadcrumb-separator">/</span> `;
-                html += `<span class="breadcrumb-item" onclick="window.navigateBack(${idx})">${folder.name}</span>`;
-            });
-            breadcrumb.innerHTML = html;
-        }
-
-        // --- EXPORT ---
-        downloadDbBtn.addEventListener('click', async () => {
-            downloadDbBtn.textContent = '...';
-            try {
-                const res = await fetch(BACKUP_URL);
-                if (!res.ok) throw new Error("Export failed");
-                const json = await res.json();
-                const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = 'vault.json';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } catch (err) {
-                alert("Failed to download vault.");
-                console.error(err);
-            }
-            downloadDbBtn.textContent = '⬇ DB';
+    try {
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-        // --- IMPORT WITH CHUNKING ---
-        importDbBtn.addEventListener('click', () => importInput.click());
+        if(res.ok) {
+            window.location.reload();
+        } else {
+            const err = await res.json();
+            alert("Error: " + JSON.stringify(err));
+        }
+    } catch(err) {
+        console.error(err);
+        alert("Server connection failed");
+    } finally {
+        submitBtn.textContent = originalText;
+        (submitBtn as HTMLButtonElement).disabled = false;
+    }
+  });
+</script>
 
-        importInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            if (!confirm(`Import items from "${file.name}" into current folder?`)) {
-                importInput.value = '';
-                return;
-            }
-
-            importDbBtn.textContent = "Processing...";
-            importDbBtn.disabled = true;
-
-            const reader = new FileReader();
-            reader.readAsText(file);
-            
-            reader.onload = async (evt) => {
-                try {
-                    const rawItems = JSON.parse(evt.target.result);
-                    
-                    if (!Array.isArray(rawItems)) throw new Error("File must be a JSON array");
-
-                    // 1. Prepare ID Mapping (Client Side)
-                    const idMap = new Map();
-                    // Generate new UUIDs for every item in the import
-                    rawItems.forEach(item => {
-                        idMap.set(item.id, crypto.randomUUID());
-                    });
-
-                    // 2. Transform items with New IDs
-                    const processedItems = rawItems.map(item => {
-                        let newParentId = null;
-
-                        // Case A: Parent is inside this import list
-                        if (item.parent_id && idMap.has(item.parent_id)) {
-                            newParentId = idMap.get(item.parent_id);
-                        } 
-                        // Case B: Parent was external (root or old parent), map to current folder
-                        else {
-                            newParentId = currentFolderId || null;
-                        }
-
-                        return {
-                            id: idMap.get(item.id), // The NEW ID
-                            name: item.name,
-                            type: item.type,
-                            value: item.value, // Base64 data
-                            parent_id: newParentId,
-                            created_at: new Date().toISOString()
-                        };
-                    });
-
-                    // 3. Send in Chunks (Batch size 5 to avoid Payload Too Large)
-                    const CHUNK_SIZE = 5; 
-                    const totalChunks = Math.ceil(processedItems.length / CHUNK_SIZE);
-
-                    for (let i = 0; i < processedItems.length; i += CHUNK_SIZE) {
-                        const chunk = processedItems.slice(i, i + CHUNK_SIZE);
-                        const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
-                        
-                        importDbBtn.textContent = `Uploading ${chunkNum}/${totalChunks}...`;
-
-                        const res = await fetch(IMPORT_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ items: chunk })
-                        });
-
-                        if (!res.ok) {
-                            const errText = await res.text();
-                            throw new Error(`Chunk ${chunkNum} failed: ${errText}`);
-                        }
-                    }
-
-                    alert(`Success! Imported ${processedItems.length} items.`);
-                    loadVault(); 
-
-                } catch (error) {
-                    console.error("Import Error:", error);
-                    alert("Import Failed: " + error.message);
-                }
-                
-                importDbBtn.textContent = "⬆ Import";
-                importDbBtn.disabled = false;
-                importInput.value = '';
-            };
-        });
-
-        // --- Standard File Operations ---
-        uploadBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = "Encoding...";
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const payload = {
-                    name: file.name,
-                    value: reader.result,
-                    type: 'file',
-                    parent_id: currentFolderId
-                };
-                const res = await fetch(API_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!res.ok) alert("Upload failed.");
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = "⬆ Upload File";
-                fileInput.value = '';
-                loadVault();
-            };
-        });
-
-        newFolderBtn.addEventListener('click', async () => {
-            const name = prompt("Enter folder name:");
-            if (!name) return;
-            await fetch(API_URL, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, type: 'folder', parent_id: currentFolderId })
-            });
-            loadVault();
-        });
-
-        window.renameItem = async (id, oldName) => {
-            const newName = prompt("Rename to:", oldName);
-            if (!newName || newName === oldName) return;
-            const res = await fetch(`${API_URL}/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newName })
-            });
-            if (res.ok) loadVault();
-        };
-
-        window.deleteItem = async (id) => {
-            if (!confirm("Delete this item permanently?")) return;
-            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-            if (res.ok) loadVault();
-        };
-
-        loadVault();
-    </script>
-	</body>
-</html>
+<style>
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+</style>

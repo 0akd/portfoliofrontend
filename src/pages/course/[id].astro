@@ -1,0 +1,100 @@
+---
+// src/pages/course/[id].astro
+export const prerender = false; 
+
+import Layout from '../../layouts/Layout.astro';
+
+const { id } = Astro.params;
+  const BASE_URL = import.meta.env.PUBLIC_BACKEND_URL;
+
+  const API_URL = `${BASE_URL}/courses/${id}`;
+
+let course = null;
+let sections = [];
+
+try {
+  const res = await fetch(API_URL);
+  if (res.ok) {
+    course = await res.json();
+    
+    // Parse sections safely
+    if (typeof course.sections === 'string') {
+      try { sections = JSON.parse(course.sections); } catch (e) { sections = []; }
+    } else if (Array.isArray(course.sections)) {
+      sections = course.sections;
+    }
+  }
+} catch(e) {
+  console.error(e);
+}
+
+if (!course) return Astro.redirect('/');
+---
+
+<Layout title={course.title}>
+  <div class="min-h-screen bg-neutral-950 text-neutral-200 flex justify-center p-6 font-sans">
+    <div class="w-full max-w-3xl">
+      
+      <a href="/" class="inline-flex items-center text-neutral-500 hover:text-white mb-8 text-sm transition-colors">
+        <span class="mr-2">←</span> Back to Dashboard
+      </a>
+      
+      <div class="bg-neutral-900 rounded-2xl p-8 border border-neutral-800 shadow-2xl">
+        <h1 class="text-4xl font-bold text-white mb-4">{course.title}</h1>
+        <p class="text-neutral-400 mb-10 leading-relaxed border-b border-neutral-800 pb-8">
+          {course.description}
+        </p>
+
+        <h3 class="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-6">Course Material</h3>
+
+        <div class="space-y-4">
+          
+          {sections.length > 0 ? sections.map((section: any) => {
+             const type = section.type ? section.type.toLowerCase() : 'link';
+             const label = section.label || 'Course Resource';
+             
+             // --- LOGIC FOR PDF VIEWER ---
+             // If PDF, go to our internal viewer. If Video/Link, open external tab.
+             let finalUrl = section.url;
+             let target = "_blank";
+             
+             if (type === 'pdf') {
+               finalUrl = `/viewer?url=${encodeURIComponent(section.url)}&title=${encodeURIComponent(label)}`;
+               target = "_self"; // Open in same tab so "Back" button works naturally
+             }
+             // -----------------------------
+             
+             return (
+              <a href={finalUrl} target={target} rel="noopener noreferrer" 
+                 class="flex items-center justify-between p-4 rounded-xl bg-neutral-800/50 hover:bg-neutral-800 border border-transparent hover:border-neutral-700 transition-all group">
+                
+                <div class="flex items-center gap-4">
+                  <div class={`w-12 h-12 rounded-lg flex items-center justify-center text-xl shadow-inner
+                    ${type === 'video' ? 'bg-red-500/10 text-red-500' : 
+                      type === 'pdf' ? 'bg-blue-500/10 text-blue-500' : 'bg-gray-700 text-gray-300'}`}>
+                    {type === 'video' ? '▶' : type === 'pdf' ? '📄' : '🔗'}
+                  </div>
+                  
+                  <div>
+                    <div class="font-semibold text-white group-hover:text-blue-400 transition-colors">
+                      {label}
+                    </div>
+                    <div class="text-xs text-neutral-500 uppercase font-medium tracking-wide">
+                      {type}
+                    </div>
+                  </div>
+                </div>
+
+                <span class="text-neutral-600 group-hover:text-white transform group-hover:translate-x-1 transition-all">
+                  {type === 'pdf' ? 'Read' : 'Open'} ↗
+                </span>
+              </a>
+            )
+          }) : (
+            <div class="text-neutral-500 italic">No materials added yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
