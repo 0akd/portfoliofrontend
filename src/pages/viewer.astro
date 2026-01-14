@@ -1,9 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-// We get the target PDF URL from the query string
 const url = Astro.url.searchParams.get('url');
 const title = Astro.url.searchParams.get('title') || 'PDF Viewer';
+const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL;
+const API_BASE = `${BACKEND_URL}/courses`;
 
 if (!url) return Astro.redirect('/');
 ---
@@ -11,73 +12,58 @@ if (!url) return Astro.redirect('/');
 <Layout title={title}>
   <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <div class="h-screen flex flex-col bg-neutral-900 text-white font-sans overflow-hidden">
+  <div class="h-screen flex flex-col bg-neutral-950 text-white font-sans overflow-hidden fixed inset-0">
     
-    <header class="h-14 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 shadow-md z-20">
-      <div class="flex items-center gap-4 min-w-0">
-        <button onclick="history.back()" class="text-neutral-400 hover:text-white transition flex items-center gap-1 text-sm shrink-0">
-          <span>←</span> <span class="hidden sm:inline">Back</span>
-        </button>
-        <h1 class="font-medium truncate text-sm border-l border-neutral-800 pl-4">{title}</h1>
-      </div>
-
-      <div id="controls" class="hidden items-center gap-2">
-        <button id="prev" class="p-1 hover:bg-white/10 rounded disabled:opacity-30">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-        </button>
-        
-        <span class="text-xs font-mono text-neutral-400">
-            <span id="page_num">--</span> / <span id="page_count">--</span>
-        </span>
-
-        <button id="next" class="p-1 hover:bg-white/10 rounded disabled:opacity-30">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-
-        <div class="w-px h-4 bg-neutral-700 mx-2 hidden sm:block"></div>
-
-        <button id="zoom_out" class="p-1 hover:bg-white/10 rounded hidden sm:block">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></svg>
-        </button>
-        <button id="zoom_in" class="p-1 hover:bg-white/10 rounded hidden sm:block">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg>
-        </button>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <span id="save-status" class="text-xs text-neutral-500 transition-opacity opacity-0">Saved</span>
-        <a href={url} download class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded transition shrink-0 whitespace-nowrap">
-            Download
-        </a>
-      </div>
+    <header class="h-12 bg-neutral-900/90 border-b border-neutral-800 flex items-center justify-between px-4 z-50">
+      <button onclick="history.back()" class="p-2 -ml-2 text-neutral-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <h1 class="font-medium truncate text-[11px] uppercase tracking-widest text-neutral-400">{title}</h1>
+      <div id="save-status" class="text-[9px] font-mono text-blue-500 opacity-0 transition-opacity">SAVING</div>
     </header>
 
-    <main class="flex-1 bg-neutral-800 relative overflow-auto flex justify-center p-4 sm:p-8" id="canvas-container">
-      <div id="loading-spinner" class="absolute inset-0 flex items-center justify-center bg-neutral-900 z-10">
-        <div class="flex flex-col items-center gap-3">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            <p class="text-xs text-neutral-400">Loading Document...</p>
-        </div>
+    <main class="flex-1 overflow-auto touch-auto bg-neutral-950 relative" id="viewer-container">
+      <div id="loading-spinner" class="absolute inset-0 flex items-center justify-center bg-neutral-950 z-20">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
       </div>
       
-      <div id="error-message" class="hidden absolute inset-0 flex items-center justify-center bg-neutral-900 z-10">
-        <div class="text-center p-4">
-            <p class="text-red-400 font-medium mb-2">Failed to load PDF</p>
-            <p class="text-xs text-neutral-500 mb-4">Check your connection or file permissions</p>
-            <a href={url} class="text-xs bg-white text-black px-4 py-2 rounded">Download Instead</a>
-        </div>
+      <div id="canvas-wrapper" class="inline-flex min-w-full min-h-full items-center justify-center p-4">
+        <canvas id="the-canvas" class="shadow-2xl bg-white transition-transform duration-150 ease-out"></canvas>
       </div>
-
-      <canvas id="the-canvas" class="shadow-2xl"></canvas>
     </main>
+
+    <footer id="smart-nav" class="h-24 bg-neutral-900 border-t border-neutral-800 relative flex items-center justify-center cursor-pointer select-none z-50 touch-none mb-safe">
+      <div id="left-feedback" class="absolute inset-y-0 left-0 w-1/2 bg-white/5 opacity-0 pointer-events-none transition-opacity"></div>
+      <div id="right-feedback" class="absolute inset-y-0 right-0 w-1/2 bg-white/5 opacity-0 pointer-events-none transition-opacity"></div>
+      <div class="absolute inset-y-6 left-1/2 w-px bg-neutral-800/50"></div>
+
+      <div class="flex flex-col items-center gap-1 pointer-events-none">
+        <div class="flex items-center gap-12">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-neutral-600"><path d="m15 18-6-6 6-6"/></svg>
+            <span id="page_num" class="text-2xl font-black tabular-nums tracking-tighter">--</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-neutral-600"><path d="m9 18 6-6-6-6"/></svg>
+        </div>
+        <span class="text-[10px] text-neutral-500 font-bold">OF <span id="page_count">--</span> PAGES</span>
+      </div>
+    </footer>
+
+    <div class="fixed bottom-28 right-4 z-50 flex flex-col items-end gap-3">
+        <div id="fab-menu" class="hidden flex-col gap-3 mb-2 items-end">
+            <div class="bg-neutral-900 border border-neutral-700 p-3 rounded-2xl shadow-2xl flex items-center gap-2">
+                <input type="number" id="goto-page" placeholder="Page" class="w-16 bg-transparent text-white text-sm outline-none px-2 border-b border-neutral-700" />
+                <button id="goto-btn" class="bg-white text-black px-4 py-1.5 rounded-xl text-[10px] font-black">GO</button>
+            </div>
+            <button id="zoom_in" class="p-4 bg-neutral-800 rounded-full shadow-lg border border-neutral-700 active:bg-neutral-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+            <button id="zoom_out" class="p-4 bg-neutral-800 rounded-full shadow-lg border border-neutral-700 active:bg-neutral-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+        <button id="fab-toggle" class="p-4 bg-blue-600 text-white rounded-full shadow-2xl transition-all active:scale-90 active:rotate-90">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </button>
+    </div>
   </div>
 </Layout>
 
-<script define:vars={{ url }}>
-  // CONFIGURATION: Points to your Hono backend
-  // Note: We added '/courses' to match your main app.route() prefix
-  const API_BASE = 'http://127.0.0.1:8787/courses'; 
-
+<script define:vars={{ url, API_BASE }}>
   window.onload = async function() {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -85,140 +71,135 @@ if (!url) return Astro.redirect('/');
         pageNum = 1,
         pageRendering = false,
         pageNumPending = null,
-        scale = 1.2,
+        scale = window.innerWidth < 768 ? 1.0 : 1.5,
         canvas = document.getElementById('the-canvas'),
         ctx = canvas.getContext('2d'),
         saveTimeout = null;
 
-    // --- 1. CONNECT TO HONO BACKEND ---
-
-    async function loadProgress() {
-      try {
-        // Fetch last saved page
-        const res = await fetch(`${API_BASE}/utils/progress?url=${encodeURIComponent(url)}`);
-        if (!res.ok) throw new Error('Progress fetch failed');
-        
-        const data = await res.json();
-        if (data.page_number) {
-            pageNum = data.page_number;
-            console.log("Resuming from page", pageNum);
+    // --- Smart Navigation (Split Screen Click) ---
+    const smartNav = document.getElementById('smart-nav');
+    const handleNav = (clientX) => {
+        const rect = smartNav.getBoundingClientRect();
+        if (clientX < rect.left + rect.width / 2) {
+            if (pageNum > 1) { pageNum--; queueRenderPage(pageNum); triggerFeedback('left'); }
+        } else {
+            if (pageNum < pdfDoc.numPages) { pageNum++; queueRenderPage(pageNum); triggerFeedback('right'); }
         }
-      } catch (e) {
-        console.warn("Could not load progress (likely first open or API error)", e);
-      }
-    }
+    };
 
-    function saveProgress(currentPage) {
-      const status = document.getElementById('save-status');
-      status.textContent = "Saving...";
-      status.classList.remove('opacity-0');
+    const triggerFeedback = (side) => {
+        const el = document.getElementById(`${side}-feedback`);
+        el.style.opacity = '1';
+        setTimeout(() => el.style.opacity = '0', 150);
+    };
 
-      if (saveTimeout) clearTimeout(saveTimeout);
-      
-      // Debounce saving to avoid spamming the DB
-      saveTimeout = setTimeout(async () => {
-        try {
-          await fetch(`${API_BASE}/utils/progress`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url, page: currentPage })
-          });
-          status.textContent = "Saved";
-          setTimeout(() => status.classList.add('opacity-0'), 2000);
-        } catch (e) {
-          status.textContent = "Error saving";
-        }
-      }, 1000);
-    }
+    smartNav.addEventListener('touchstart', (e) => handleNav(e.touches[0].clientX));
+    smartNav.addEventListener('mousedown', (e) => handleNav(e.clientX));
 
-    // --- 2. RENDER LOGIC ---
+    // --- FAB Toggle ---
+    const fabToggle = document.getElementById('fab-toggle');
+    const fabMenu = document.getElementById('fab-menu');
+    fabToggle.addEventListener('click', () => {
+        fabMenu.classList.toggle('hidden');
+        fabMenu.classList.toggle('flex');
+    });
 
+    // --- PDF Logic ---
     function renderPage(num) {
       pageRendering = true;
-      
       pdfDoc.getPage(num).then(function(page) {
-        const containerWidth = document.getElementById('canvas-container').clientWidth - 40;
         const viewport = page.getViewport({scale: scale});
         const outputScale = window.devicePixelRatio || 1;
-
+        
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = Math.floor(viewport.width) + "px";
         canvas.style.height = Math.floor(viewport.height) + "px";
 
-        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-
-        const renderContext = {
-          canvasContext: ctx,
-          transform: transform,
-          viewport: viewport
+        const renderContext = { 
+            canvasContext: ctx, 
+            transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null, 
+            viewport: viewport 
         };
         
         page.render(renderContext).promise.then(function() {
           pageRendering = false;
           document.getElementById('loading-spinner').classList.add('hidden');
-          document.getElementById('controls').classList.remove('hidden');
-          document.getElementById('controls').classList.add('flex');
-
-          if (pageNumPending !== null) {
-            renderPage(pageNumPending);
-            pageNumPending = null;
-          }
+          if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
         });
       });
-
       document.getElementById('page_num').textContent = num;
-      document.getElementById('prev').disabled = num <= 1;
-      document.getElementById('next').disabled = num >= pdfDoc.numPages;
-
-      // Trigger Save
       saveProgress(num);
     }
 
     function queueRenderPage(num) {
-      if (pageRendering) {
-        pageNumPending = num;
-      } else {
-        renderPage(num);
-      }
+      if (pageRendering) { pageNumPending = num; } else { renderPage(num); }
     }
 
-    function onPrevPage() {
-      if (pageNum <= 1) return;
-      pageNum--;
-      queueRenderPage(pageNum);
+    // Zoom buttons recalculate scale and re-render
+    document.getElementById('zoom_in').addEventListener('click', () => { scale *= 1.25; queueRenderPage(pageNum); });
+    document.getElementById('zoom_out').addEventListener('click', () => { scale *= 0.8; queueRenderPage(pageNum); });
+
+    document.getElementById('goto-btn').addEventListener('click', () => {
+        const val = parseInt(document.getElementById('goto-page').value);
+        if (val >= 1 && val <= pdfDoc.numPages) {
+            pageNum = val;
+            queueRenderPage(pageNum);
+            fabMenu.classList.add('hidden');
+        }
+    });
+
+    async function loadProgress() {
+        try {
+            const res = await fetch(`${API_BASE}/utils/progress?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+            if (data.page_number) pageNum = data.page_number;
+        } catch (e) {}
     }
 
-    function onNextPage() {
-      if (pageNum >= pdfDoc.numPages) return;
-      pageNum++;
-      queueRenderPage(pageNum);
+    function saveProgress(currentPage) {
+        const status = document.getElementById('save-status');
+        status.classList.remove('opacity-0');
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(async () => {
+            try {
+                await fetch(`${API_BASE}/utils/progress`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, page: currentPage })
+                });
+                setTimeout(() => status.classList.add('opacity-0'), 1000);
+            } catch (e) {}
+        }, 2000);
     }
-
-    // --- 3. INITIALIZATION ---
-
-    document.getElementById('prev').addEventListener('click', onPrevPage);
-    document.getElementById('next').addEventListener('click', onNextPage);
-    document.getElementById('zoom_in').addEventListener('click', () => { scale += 0.2; queueRenderPage(pageNum); });
-    document.getElementById('zoom_out').addEventListener('click', () => { if(scale>0.6) scale -= 0.2; queueRenderPage(pageNum); });
 
     try {
-        // Step 1: Check where we left off
         await loadProgress(); 
-
-        // Step 2: Construct the Proxy URL
-        // We use the same API_BASE here to fetch the PDF through the proxy
         const proxyUrl = `${API_BASE}/utils/proxy-pdf?url=${encodeURIComponent(url)}`;
-        
-        // Step 3: Load the Document
         pdfDoc = await pdfjsLib.getDocument(proxyUrl).promise;
         document.getElementById('page_count').textContent = pdfDoc.numPages;
         renderPage(pageNum);
-
     } catch (error) {
-        console.error('Error loading PDF:', error);
-        document.getElementById('loading-spinner').classList.add('hidden');
-        document.getElementById('error-message').classList.remove('hidden');
+        document.getElementById('loading-spinner').innerHTML = "Load Error";
     }
   }
 </script>
+
+<style>
+  /* Custom scrollbar to stay clean */
+  #viewer-container::-webkit-scrollbar { width: 4px; height: 4px; }
+  #viewer-container::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+  
+  /* Critical for "Gallery" feel: Allows native pinch and pan */
+  #the-canvas {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-drag: none;
+    image-rendering: -webkit-optimize-contrast;
+  }
+
+  /* Support for notched phones */
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+</style>

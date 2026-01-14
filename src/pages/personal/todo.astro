@@ -2,12 +2,15 @@
 import Layout from '../../layouts/Layout.astro';
 import MistakeFloater from '../../components/test.tsx';
 import MistakeFloate from '../../components/correctness.tsx';
+import TodoFloater from '../../components/TodoFloater.tsx';
 ---
 
 <Layout title="My Tracker">
   <main>
     <MistakeFloater client:load />
         <MistakeFloate client:load />
+        <TodoFloater client:load />
+
     <canvas id="effectCanvas"></canvas>
 
     <div class="todo-container">
