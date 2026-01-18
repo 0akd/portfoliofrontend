@@ -8,8 +8,8 @@ import TodoFloater from '../../components/TodoFloater.tsx';
 <Layout title="My Tracker">
   <main>
     <MistakeFloater client:load />
-        <MistakeFloate client:load />
-        <TodoFloater client:load />
+    <MistakeFloate client:load />
+    <TodoFloater client:load />
 
     <canvas id="effectCanvas"></canvas>
 
@@ -81,6 +81,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
                     </div>
                 </div>
             </div>
+            
             <div id="historyStatsDisplay" class="metrics-panel hidden">
                 <div class="metric-box left-metric">
                     <label>Recorded Count</label>
@@ -95,6 +96,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
                      <span id="readOnlyStatus" class="chip">Pending</span>
                 </div>
             </div>
+
             <div id="historyMetricsPanel" class="metrics-panel hidden history-edit-mode">
                  <div class="history-controls-row">
                     <label class="cb-label">
@@ -114,8 +116,15 @@ import TodoFloater from '../../components/TodoFloater.tsx';
                  </div>
                  <button id="saveHistoryBtn" class="btn-save-small">Update History Record</button>
             </div>
+
           <div id="viewModeContainer" class="mode-container">
               <h2 id="viewTitle" class="view-title-text"></h2>
+              
+              <div class="section" id="viewSubtasksSection">
+                  <label>&#9745; Subtasks</label> 
+                  <div id="viewSubtasksList" class="view-list-container" style="display:flex; flex-direction:column; gap:5px;"></div>
+              </div>
+
               <div class="section">
                   <label>&#128230; Required Items</label> 
                   <div id="viewItemsList" class="view-list-container"></div>
@@ -125,6 +134,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
                   <div id="viewStepsList" class="view-steps-container"></div>
               </div>
           </div>
+
           <div id="editModeContainer" class="mode-container hidden">
             <div class="section">
                 <label>Task Title</label>
@@ -142,6 +152,18 @@ import TodoFloater from '../../components/TodoFloater.tsx';
               <label>Position</label>
                 <button id="moveTaskBtn" class="btn-dashed" style="text-align:left;">&#128205; Move Task Location...</button>
               </div>
+              
+              <div class="section">
+                  <label>&#9745; Subtasks (Must finish all to complete parent)</label>
+                  <div class="items-editor">
+                      <div id="editSubtasksList" class="subtasks-container"></div>
+                      <div class="input-group-small">
+                          <input type="text" id="subtaskInput" class="item-input" placeholder="New Subtask..." />
+                          <button id="addSubtaskBtn" class="btn-action-small">Add</button>
+                      </div>
+                  </div>
+              </div>
+
               <div class="section">
                   <label>&#128230; Edit Items</label>
                   <div class="items-editor">
@@ -177,7 +199,8 @@ import TodoFloater from '../../components/TodoFloater.tsx';
 <script>
   // --- INTERFACES & GLOBALS ---
   interface HistoryLog { sessionId: string; completed: boolean; snapshotCounter: number; snapshotTimer: number; }
-  interface Task { id: number; text: string; completed: boolean; priority: number; category: string; requiredItems: string | string[]; procedure: string | string[]; activeCounter: number; activeTimer: number; history: HistoryLog[]; unit: string; }
+  interface Subtask { id: string; text: string; completed: boolean; }
+  interface Task { id: number; text: string; completed: boolean; priority: number; category: string; requiredItems: string | string[]; procedure: string | string[]; activeCounter: number; activeTimer: number; history: HistoryLog[]; unit: string; subtasks: Subtask[]; }
   interface Session { sessionId: string; timestamp: number; }
 
   declare global {
@@ -187,6 +210,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
       openHistoryModal: (taskId: number, sessionId: string) => void;
       closeModal: () => void;
       deleteItem: (idx: number) => void;
+      deleteSubtask: (idx: number) => void;
       updateStep: (idx: number, val: string) => void;
       deleteStep: (idx: number) => void;
       moveStep: (idx: number, dir: number) => void;
@@ -195,6 +219,8 @@ import TodoFloater from '../../components/TodoFloater.tsx';
       toggleTimer: () => void;
       resetTimer: () => void;
       triggerDestruction: (x: number, y: number) => void;
+      // Updated Signature for toggleSubtask
+      toggleSubtask: (e: MouseEvent, taskId: number, subtaskId: string) => void;
     }
   }
 
@@ -209,6 +235,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
   let editingSessionId: string | null = null; 
   let tempItems: string[] = [];
   let tempSteps: string[] = [];
+  let tempSubtasks: Subtask[] = [];
   let timerInterval: any = null;
   let tempTimerSeconds = 0;
   let tempCounterValue = 0;
@@ -282,7 +309,16 @@ import TodoFloater from '../../components/TodoFloater.tsx';
     try {
       const res = await fetch(API_URL);
       const data = await res.json();
-      todos = data.tasks || [];
+      
+      // FIX: Sanitize incoming data to ensure JSON fields are Arrays, not strings
+      const rawTasks = data.tasks || [];
+      todos = rawTasks.map((t: any) => ({
+          ...t,
+          subtasks: typeof t.subtasks === 'string' ? JSON.parse(t.subtasks) : (t.subtasks || []),
+          requiredItems: typeof t.requiredItems === 'string' ? JSON.parse(t.requiredItems) : (t.requiredItems || []),
+          procedure: typeof t.procedure === 'string' ? JSON.parse(t.procedure) : (t.procedure || [])
+      }));
+      
       sessions = data.sessions || [];
       render();
     } catch(e) { console.error(e); }
@@ -297,17 +333,38 @@ import TodoFloater from '../../components/TodoFloater.tsx';
   }
 
   function createTaskElement(task: Task, visibleSessions: Session[]) {
+    // subtasks are now guaranteed to be an array due to loadTasks fix
+    const subtasks = task.subtasks || [];
+    const allSubtasksDone = subtasks.length === 0 || subtasks.every(s => s.completed);
+
     const li = document.createElement('li');
     li.id = `task-row-${task.id}`; 
-    li.className = `task-card ${task.completed ? 'done' : ''}`;
+    li.className = `task-card-container ${task.completed ? 'done' : ''}`;
 
+    // Main Row
+    const mainRow = document.createElement('div');
+    mainRow.className = 'task-card-main';
+    
     const cbContainer = document.createElement('div');
     cbContainer.className = 'cb-container';
     const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.className = 'big-cb'; cb.checked = task.completed;
+    cb.type = 'checkbox'; cb.className = 'big-cb'; 
+    cb.checked = task.completed;
+    
+    // Disable Parent Checkbox if subtasks pending
+    if (!allSubtasksDone) {
+        cb.disabled = true;
+        cb.classList.add('cb-disabled');
+        cb.title = "Complete all subtasks first";
+    }
     
     cb.onclick = (e: MouseEvent) => { 
         e.stopPropagation(); 
+        if (!allSubtasksDone) {
+            alert("Please complete all subtasks first.");
+            cb.checked = false;
+            return;
+        }
         if (!task.completed) {
             window.triggerDestruction(e.clientX, e.clientY);
             const row = document.getElementById(`task-row-${task.id}`);
@@ -321,7 +378,8 @@ import TodoFloater from '../../components/TodoFloater.tsx';
     titleSection.className = 'title-section';
     let catHtml = '';
     if (task.category && task.category.trim() !== '') { catHtml = `<span class="chip">${task.category}</span>`; }
-    const hasDetails = (task.requiredItems?.length > 0) || (task.procedure?.length > 0);
+    
+    const hasDetails = (task.requiredItems?.length > 0) || (task.procedure?.length > 0) || (subtasks.length > 0);
     const detailIndicator = hasDetails ? '<span class="icon-indicator" title="Has Details">&#128221;</span>' : '';
 
     titleSection.innerHTML = `
@@ -343,9 +401,67 @@ import TodoFloater from '../../components/TodoFloater.tsx';
     dropdown.className = 'dropdown';
     dropdown.innerHTML = `<button class="btn-icon btn-more" onclick="toggleDropdown(event, ${task.id})">&#8942;</button><div id="dropdown-${task.id}" class="dropdown-content"><div class="dd-label">History (Last 7 Days)</div>${historyHtml}<div class="dd-divider"></div><div onclick="openModal(${task.id}, 'edit')">&#9999; Edit Details</div><div onclick="remove(${task.id})" class="danger-text">&#128465; Delete</div></div>`;
     
-    li.append(cbContainer, titleSection, dropdown);
+    mainRow.append(cbContainer, titleSection, dropdown);
+    li.appendChild(mainRow);
+
+    // Render Subtasks
+    if (subtasks.length > 0) {
+        const ulSub = document.createElement('ul');
+        ulSub.className = 'subtask-list';
+        subtasks.forEach(sub => {
+            const liSub = document.createElement('li');
+            liSub.className = 'subtask-item';
+            // Added event argument to toggleSubtask
+            liSub.innerHTML = `
+                <div class="sub-cb-wrapper">
+                  <input type="checkbox" class="sub-cb" ${sub.completed ? 'checked' : ''} onclick="toggleSubtask(event, ${task.id}, '${sub.id}')"/>
+                </div>
+                <span class="${sub.completed ? 'sub-done' : ''}">${sub.text}</span>
+            `;
+            ulSub.appendChild(liSub);
+        });
+        li.appendChild(ulSub);
+    }
+
     document.getElementById('taskList')!.appendChild(li);
   }
+
+  // --- SUBTASK LOGIC FIXED ---
+  window.toggleSubtask = async (e, taskId, subtaskId) => {
+    // Stop propagation so we don't trigger row click
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    const task = todos.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Task.subtasks is already an array thanks to loadTasks()
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
+    if (!subtask) return;
+    
+    // VISUAL EFFECT for Subtask
+    if (!subtask.completed) {
+        window.triggerDestruction(e.clientX, e.clientY);
+    }
+
+    // Update State
+    subtask.completed = !subtask.completed;
+    
+    // If a subtask becomes unchecked, the parent MUST be unchecked
+    if (!subtask.completed && task.completed) {
+        task.completed = false;
+        await fetch(`${API_URL}/${taskId}/toggle`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:false})});
+    }
+
+    // Re-render immediately to update UI state
+    render(); 
+
+    // Save subtasks state
+    await fetch(`${API_URL}/${taskId}`, { 
+        method:'PATCH', 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify({ subtasks: task.subtasks }) 
+    });
+  };
 
   // --- STANDARD ACTIONS ---
   function stopLiveTimer() { if(timerInterval) clearInterval(timerInterval); isTimerRunning = false; const btn = document.getElementById('btnTimerToggle'); if(btn) { btn.innerText = "Start"; btn.classList.remove('btn-active'); } }
@@ -355,15 +471,91 @@ import TodoFloater from '../../components/TodoFloater.tsx';
   function parseTimeToSeconds(timeStr) { const parts = timeStr.split(':').reverse(); let s = 0; if(parts[0]) s += parseInt(parts[0]); if(parts[1]) s += parseInt(parts[1]) * 60; if(parts[2]) s += parseInt(parts[2]) * 3600; return isNaN(s) ? 0 : s; }
   window.toggleTimer = () => { const btn = document.getElementById('btnTimerToggle') as HTMLElement; if (isTimerRunning) { stopLiveTimer(); saveMetrics(); } else { isTimerRunning = true; btn.innerText = "Stop"; btn.classList.add('btn-active'); timerInterval = setInterval(() => { tempTimerSeconds++; document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds); }, 1000); } };
   window.resetTimer = () => { stopLiveTimer(); if(confirm("Reset Timer to 0?")) { tempTimerSeconds = 0; document.getElementById('displayTimer')!.innerText = "00:00:00"; saveMetrics(); } };
-  window.openModal = (id, mode = 'view') => { stopLiveTimer(); editingSessionId = null; const task = todos.find(t => t.id === id); if (!task) return; currentId = id; const unitName = task.unit || 'units'; document.getElementById('btnHistoryEdit')!.classList.add('hidden'); document.getElementById('historyStatsDisplay')!.classList.add('hidden'); document.getElementById('historyMetricsPanel')!.classList.add('hidden'); document.getElementById('metricsPanel')!.classList.remove('hidden'); tempCounterValue = task.activeCounter || 0; tempTimerSeconds = task.activeTimer || 0; document.getElementById('displayCounter')!.innerText = tempCounterValue.toString(); document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds); document.getElementById('lblCounter')!.innerText = `How many ${unitName} you did`; document.getElementById('lblTimer')!.innerText = `How much time spent in ${unitName}`; try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } const viewContainer = document.getElementById('viewModeContainer') as HTMLElement; const editContainer = document.getElementById('editModeContainer') as HTMLElement; if (mode === 'view') { viewContainer.classList.remove('hidden'); editContainer.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Task Details"; document.getElementById('viewTitle')!.innerText = task.text; const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; } else { viewContainer.classList.add('hidden'); editContainer.classList.remove('hidden'); document.getElementById('metricsPanel')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Edit Task"; (document.getElementById('modalTaskTitle') as HTMLInputElement).value = task.text; (document.getElementById('modalUnitInput') as HTMLInputElement).value = unitName; (document.getElementById('modalCategoryInput') as HTMLInputElement).value = task.category || ''; renderEditContent(); } (document.getElementById('detailModal') as HTMLDialogElement).showModal(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); };
-  window.openHistoryModal = (taskId, sessionId) => { stopLiveTimer(); currentId = taskId; editingSessionId = sessionId; const task = todos.find(t => t.id === taskId); if(!task) return; const log = task.history.find(h => h.sessionId === sessionId); const countVal = log ? log.snapshotCounter : 0; const timerVal = log ? log.snapshotTimer : 0; const isComp = log ? log.completed : false; document.getElementById('metricsPanel')!.classList.add('hidden'); const readOnlyPanel = document.getElementById('historyStatsDisplay')!; readOnlyPanel.classList.remove('hidden'); document.getElementById('readOnlyCount')!.innerText = countVal.toString(); document.getElementById('readOnlyTime')!.innerText = formatTime(timerVal); const statusSpan = document.getElementById('readOnlyStatus')!; statusSpan.innerText = isComp ? "Completed" : "Incomplete"; statusSpan.style.color = isComp ? "var(--green)" : "var(--sub)"; const editPanel = document.getElementById('historyMetricsPanel')!; editPanel.classList.add('hidden'); (document.getElementById('histCounterInput') as HTMLInputElement).value = countVal.toString(); (document.getElementById('histTimerInput') as HTMLInputElement).value = formatTime(timerVal); (document.getElementById('histCompletedCb') as HTMLInputElement).checked = isComp; const editBtn = document.getElementById('btnHistoryEdit')!; editBtn.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; editBtn.onclick = () => { const isCurrentlyEditing = !editPanel.classList.contains('hidden'); if(isCurrentlyEditing) { editPanel.classList.add('hidden'); readOnlyPanel.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; } else { editPanel.classList.remove('hidden'); readOnlyPanel.classList.add('hidden'); editBtn.innerText = "✕ Cancel Edit"; } }; document.getElementById('viewModeContainer')!.classList.remove('hidden'); document.getElementById('editModeContainer')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "History Record"; document.getElementById('viewTitle')!.innerText = `${task.text} (Past)`; try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; (document.getElementById('detailModal') as HTMLDialogElement).showModal(); };
+  
+  window.openModal = (id, mode = 'view') => { 
+      stopLiveTimer(); editingSessionId = null; const task = todos.find(t => t.id === id); if (!task) return; currentId = id; const unitName = task.unit || 'units'; document.getElementById('btnHistoryEdit')!.classList.add('hidden'); document.getElementById('historyStatsDisplay')!.classList.add('hidden'); document.getElementById('historyMetricsPanel')!.classList.add('hidden'); document.getElementById('metricsPanel')!.classList.remove('hidden'); tempCounterValue = task.activeCounter || 0; tempTimerSeconds = task.activeTimer || 0; document.getElementById('displayCounter')!.innerText = tempCounterValue.toString(); document.getElementById('displayTimer')!.innerText = formatTime(tempTimerSeconds); document.getElementById('lblCounter')!.innerText = `How many ${unitName} you did`; document.getElementById('lblTimer')!.innerText = `How much time spent in ${unitName}`; 
+      
+      // Safety handled in loadTasks, but kept for robustness
+      try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } 
+      try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } 
+      try { tempSubtasks = typeof task.subtasks === 'string' ? JSON.parse(task.subtasks) : (task.subtasks || []); } catch(e) { tempSubtasks = []; }
+
+      const viewContainer = document.getElementById('viewModeContainer') as HTMLElement; const editContainer = document.getElementById('editModeContainer') as HTMLElement; 
+      
+      if (mode === 'view') { 
+          viewContainer.classList.remove('hidden'); editContainer.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Task Details"; document.getElementById('viewTitle')!.innerText = task.text; 
+          const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; 
+          const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; 
+          
+          // Render Subtasks in View Mode
+          const vSub = document.getElementById('viewSubtasksList')!;
+          if (tempSubtasks.length > 0) {
+              vSub.innerHTML = tempSubtasks.map(s => `<div class="view-step-row"><span style="color:var(${s.completed?'--green':'--red'})">${s.completed?'&#9745;':'&#9744;'}</span> <span>${s.text}</span></div>`).join('');
+              document.getElementById('viewSubtasksSection')!.classList.remove('hidden');
+          } else {
+              document.getElementById('viewSubtasksSection')!.classList.add('hidden');
+          }
+
+      } else { 
+          viewContainer.classList.add('hidden'); editContainer.classList.remove('hidden'); document.getElementById('metricsPanel')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "Edit Task"; 
+          (document.getElementById('modalTaskTitle') as HTMLInputElement).value = task.text; 
+          (document.getElementById('modalUnitInput') as HTMLInputElement).value = unitName; 
+          (document.getElementById('modalCategoryInput') as HTMLInputElement).value = task.category || ''; 
+          renderEditContent(); 
+      } 
+      (document.getElementById('detailModal') as HTMLDialogElement).showModal(); document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show')); 
+  };
+
+  window.openHistoryModal = (taskId, sessionId) => { stopLiveTimer(); currentId = taskId; editingSessionId = sessionId; const task = todos.find(t => t.id === taskId); if(!task) return; const log = task.history.find(h => h.sessionId === sessionId); const countVal = log ? log.snapshotCounter : 0; const timerVal = log ? log.snapshotTimer : 0; const isComp = log ? log.completed : false; document.getElementById('metricsPanel')!.classList.add('hidden'); const readOnlyPanel = document.getElementById('historyStatsDisplay')!; readOnlyPanel.classList.remove('hidden'); document.getElementById('readOnlyCount')!.innerText = countVal.toString(); document.getElementById('readOnlyTime')!.innerText = formatTime(timerVal); const statusSpan = document.getElementById('readOnlyStatus')!; statusSpan.innerText = isComp ? "Completed" : "Incomplete"; statusSpan.style.color = isComp ? "var(--green)" : "var(--sub)"; const editPanel = document.getElementById('historyMetricsPanel')!; editPanel.classList.add('hidden'); (document.getElementById('histCounterInput') as HTMLInputElement).value = countVal.toString(); (document.getElementById('histTimerInput') as HTMLInputElement).value = formatTime(timerVal); (document.getElementById('histCompletedCb') as HTMLInputElement).checked = isComp; const editBtn = document.getElementById('btnHistoryEdit')!; editBtn.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; editBtn.onclick = () => { const isCurrentlyEditing = !editPanel.classList.contains('hidden'); if(isCurrentlyEditing) { editPanel.classList.add('hidden'); readOnlyPanel.classList.remove('hidden'); editBtn.innerText = "✎ Edit Stats"; } else { editPanel.classList.remove('hidden'); readOnlyPanel.classList.add('hidden'); editBtn.innerText = "✕ Cancel Edit"; } }; document.getElementById('viewModeContainer')!.classList.remove('hidden'); document.getElementById('editModeContainer')!.classList.add('hidden'); document.getElementById('modalHeaderTitle')!.innerText = "History Record"; document.getElementById('viewTitle')!.innerText = `${task.text} (Past)`; try { tempItems = typeof task.requiredItems === 'string' ? JSON.parse(task.requiredItems) : (task.requiredItems || []); } catch(e) { tempItems = []; } try { tempSteps = typeof task.procedure === 'string' ? JSON.parse(task.procedure) : (task.procedure || []); } catch(e) { tempSteps = []; } 
+  // Hide subtasks in history view
+  document.getElementById('viewSubtasksSection')!.classList.add('hidden');
+  const vItems = document.getElementById('viewItemsList')!; vItems.innerHTML = tempItems.length ? tempItems.map(i => `<span class="view-tag">${i}</span>`).join('') : '<span class="empty-text">No items.</span>'; const vSteps = document.getElementById('viewStepsList')!; vSteps.innerHTML = tempSteps.length ? tempSteps.map((s, i) => `<div class="view-step-row"><span class="step-num">${i+1}.</span><span>${s}</span></div>`).join('') : '<span class="empty-text">No procedure.</span>'; (document.getElementById('detailModal') as HTMLDialogElement).showModal(); };
+
   document.getElementById('saveHistoryBtn')!.onclick = async () => { if(!currentId || !editingSessionId) return; const newCount = parseInt((document.getElementById('histCounterInput') as HTMLInputElement).value) || 0; const newTimeStr = (document.getElementById('histTimerInput') as HTMLInputElement).value; const newCompleted = (document.getElementById('histCompletedCb') as HTMLInputElement).checked; const newTimerVal = parseTimeToSeconds(newTimeStr); await fetch(`${HIST_API_URL}/${currentId}/${editingSessionId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ snapshotCounter: newCount, snapshotTimer: newTimerVal, completed: newCompleted }) }); window.closeModal(); loadTasks(); };
   window.closeModal = () => { stopLiveTimer(); if(editingSessionId === null) saveMetrics(); (document.getElementById('detailModal') as HTMLDialogElement).close(); };
-  function renderEditContent() { const list = document.getElementById('editItemsList')!; list.innerHTML = tempItems.map((item, i) => `<span class="edit-tag">${item} <button onclick="deleteItem(${i})">&times;</button></span>`).join(''); const stepList = document.getElementById('editStepsList')!; stepList.innerHTML = ''; tempSteps.forEach((step, idx) => { const row = document.createElement('div'); row.className = 'edit-step-row'; row.innerHTML = `<div class="step-controls"><button onclick="moveStep(${idx}, -1)" ${idx===0?'disabled':''}>&#9650;</button><button onclick="moveStep(${idx}, 1)" ${idx===tempSteps.length-1?'disabled':''}>&#9660;</button></div><span class="bullet">${idx+1}.</span><input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)"><button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button>`; stepList.appendChild(row); }); }
+  
+  function renderEditContent() { 
+      // Render Items
+      const list = document.getElementById('editItemsList')!; list.innerHTML = tempItems.map((item, i) => `<span class="edit-tag">${item} <button onclick="deleteItem(${i})">&times;</button></span>`).join(''); 
+      // Render Steps
+      const stepList = document.getElementById('editStepsList')!; stepList.innerHTML = ''; tempSteps.forEach((step, idx) => { const row = document.createElement('div'); row.className = 'edit-step-row'; row.innerHTML = `<div class="step-controls"><button onclick="moveStep(${idx}, -1)" ${idx===0?'disabled':''}>&#9650;</button><button onclick="moveStep(${idx}, 1)" ${idx===tempSteps.length-1?'disabled':''}>&#9660;</button></div><span class="bullet">${idx+1}.</span><input type="text" class="step-input" value="${step}" onchange="updateStep(${idx}, this.value)"><button onclick="deleteStep(${idx})" class="btn-del-step">&#128465;</button>`; stepList.appendChild(row); }); 
+      // Render Subtasks in Edit Mode
+      const subList = document.getElementById('editSubtasksList')!; 
+      subList.innerHTML = tempSubtasks.map((s, i) => `<div class="edit-step-row" style="padding:5px; background:rgba(255,255,255,0.05); border-radius:4px;"><span style="font-size:1.2rem; color:${s.completed?'var(--green)':'var(--sub)'}">&#9745;</span> <span style="flex:1;">${s.text}</span> <button onclick="deleteSubtask(${i})" class="btn-del-step">&#128465;</button></div>`).join('');
+  }
+  
   window.moveStep = (idx, dir) => { if ((dir === -1 && idx === 0) || (dir === 1 && idx === tempSteps.length - 1)) return; const targetIdx = idx + dir; [tempSteps[idx], tempSteps[targetIdx]] = [tempSteps[targetIdx], tempSteps[idx]]; renderEditContent(); };
+  
+  // Logic to add Subtasks
+  const subtaskInput = document.getElementById('subtaskInput') as HTMLInputElement; 
+  const addSubtaskBtn = document.getElementById('addSubtaskBtn');
+  function triggerAddSubtask() { if(subtaskInput.value.trim()){ tempSubtasks.push({id: crypto.randomUUID(), text: subtaskInput.value.trim(), completed: false}); subtaskInput.value=''; renderEditContent(); }}
+  if(addSubtaskBtn) addSubtaskBtn.onclick = triggerAddSubtask;
+  if(subtaskInput) subtaskInput.onkeydown = (e) => { if(e.key==='Enter') triggerAddSubtask(); };
+  window.deleteSubtask = (i) => { tempSubtasks.splice(i, 1); renderEditContent(); };
+
   const itemInput = document.getElementById('itemInput') as HTMLInputElement; const addItemBtn = document.getElementById('addItemBtn'); function triggerAddItem() { if(itemInput.value.trim()){ tempItems.push(itemInput.value.trim()); itemInput.value=''; renderEditContent(); }} if(addItemBtn) addItemBtn.onclick = triggerAddItem; if(itemInput) itemInput.onkeydown = (e) => { if(e.key==='Enter') triggerAddItem(); };
   window.deleteItem = (i) => { tempItems.splice(i, 1); renderEditContent(); }; document.getElementById('addStepBtn')!.onclick = () => { tempSteps.push(""); renderEditContent(); }; window.updateStep = (i, v) => { tempSteps[i] = v; }; window.deleteStep = (i) => { tempSteps.splice(i, 1); renderEditContent(); };
-  document.getElementById('saveDetailBtn')!.onclick = async () => { const newTitle = (document.getElementById('modalTaskTitle') as HTMLInputElement).value; const newUnit = (document.getElementById('modalUnitInput') as HTMLInputElement).value; const newCat = (document.getElementById('modalCategoryInput') as HTMLInputElement).value; await fetch(`${API_URL}/${currentId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text: newTitle, unit: newUnit, category: newCat, requiredItems: tempItems, procedure: tempSteps.filter(s=>s.trim()!=="") }) }); window.closeModal(); loadTasks(); };
+  
+  document.getElementById('saveDetailBtn')!.onclick = async () => { 
+      const newTitle = (document.getElementById('modalTaskTitle') as HTMLInputElement).value; 
+      const newUnit = (document.getElementById('modalUnitInput') as HTMLInputElement).value; 
+      const newCat = (document.getElementById('modalCategoryInput') as HTMLInputElement).value; 
+      await fetch(`${API_URL}/${currentId}`, { 
+          method: 'PATCH', 
+          headers: {'Content-Type': 'application/json'}, 
+          body: JSON.stringify({ 
+              text: newTitle, 
+              unit: newUnit, 
+              category: newCat, 
+              requiredItems: tempItems, 
+              procedure: tempSteps.filter(s=>s.trim()!==""),
+              subtasks: tempSubtasks 
+          }) 
+      }); 
+      window.closeModal(); loadTasks(); 
+  };
+  
   const exportBtn = document.getElementById('exportBtn'); if(exportBtn) { exportBtn.onclick = async () => { try { const res = await fetch(`${API_URL}/export`); if(!res.ok) throw new Error("Export failed"); const blob = await res.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `todo-backup-${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url); } catch(e) { alert("Export Failed."); console.error(e); } }; }
   const importBtn = document.getElementById('importBtn'); const fileInput = document.getElementById('fileInput') as HTMLInputElement; if(importBtn) { importBtn.onclick = () => { if(confirm("Importing will REPLACE your current data. Are you sure?")) { fileInput.click(); } }; } if(fileInput) { fileInput.onchange = (e: any) => { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async (evt) => { try { const json = JSON.parse(evt.target?.result as string); const res = await fetch(`${API_URL}/import`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(json) }); const result = await res.json(); if(result.success) { alert("Import successful!"); loadTasks(); } else { alert("Import failed: " + (result.error || "Unknown")); } } catch(err) { alert("Invalid file format."); } fileInput.value = ''; }; reader.readAsText(file); }; }
   const fabAddBtn = document.getElementById('fabAddBtn'); const addModal = document.getElementById('addModal') as HTMLDialogElement; if(fabAddBtn) { fabAddBtn.onclick = () => { addModal.showModal(); setTimeout(() => document.getElementById('taskInput')?.focus(), 100); }; }
@@ -398,16 +590,83 @@ import TodoFloater from '../../components/TodoFloater.tsx';
       position: relative;
       z-index: 100;
   }
-
-  .task-card.done .task-title {
+  
+  /* Task List Styles Modified for Subtasks */
+  .task-list { list-style:none; padding:2px 0 60px 0; flex: 1; overflow-y: auto; margin: 0; }
+  
+  .task-card-container { 
+      background:var(--card); 
+      margin-bottom:2px; 
+      border-radius:0; 
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid transparent; 
+      border: 1px solid transparent;
+  }
+  
+  .task-card-main {
+      display:flex; align-items:center; gap:12px;
+      padding:8px 12px; 
+      min-height: 45px;
+      transition: background 0.2s;
+  }
+  
+  .task-card-container.done .task-title {
       text-decoration: line-through;
       text-decoration-color: var(--red);
       text-decoration-thickness: 3px;
       color: var(--sub);
       transition: all 0.3s;
   }
+  
+  .task-card-container:hover .task-card-main { background:#323240; }
 
-  /* MODIFIED: Wrapped Title Logic */
+  /* --- Subtask Styling --- */
+  .subtask-list {
+      list-style: none;
+      padding: 5px 10px 5px 35px; /* Indent */
+      margin: 0;
+      background: rgba(0,0,0,0.15); /* Slightly darker bg for nested items */
+      border-top: 1px solid #333;
+  }
+  
+  .subtask-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+      font-size: 0.85rem;
+      color: #ccc;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .subtask-item:last-child { border-bottom: none; }
+  
+  .sub-cb-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .sub-cb {
+      width: 15px; height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin: 0;
+  }
+  
+  .sub-done {
+      text-decoration: line-through;
+      color: var(--sub);
+      opacity: 0.6;
+  }
+  
+  .cb-disabled {
+      opacity: 0.3;
+      cursor: not-allowed !important;
+      filter: grayscale(1);
+  }
+
+  /* ... Rest of existing CSS ... */
   .task-main-text {
       display: flex;
       flex-wrap: wrap; /* Allows indicator to flow if needed */
@@ -421,10 +680,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
   .todo-container { max-width:100%; margin:0; height: 100vh; display: flex; flex-direction: column; padding: 0; }
   .fab-btn { position: fixed; bottom: 25px; right: 25px; width: 55px; height: 55px; border-radius: 50%; background: var(--accent); color: white; font-size: 2.5rem; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, background 0.2s; line-height: 1; padding-bottom: 6px; }
   .fab-btn:hover { transform: scale(1.1); background: #6a4bc9; }
-  .task-list { list-style:none; padding:2px 0 60px 0; flex: 1; overflow-y: auto; margin: 0; }
-  .task-card { background:var(--card); margin-bottom:2px; border-radius:0; padding:8px 12px; display:flex; align-items:center; gap:12px; transition: background 0.2s; min-height: 45px; border-left: 3px solid transparent; border: 1px solid transparent; }
-  .task-card:hover { background:#323240; }
-  .task-card:last-child { margin-bottom: 80px; } 
+  
   .title-section { flex:1; display:flex; flex-direction:column; cursor:pointer; min-width:0; }
   .task-title { font-size:0.95rem; font-weight:500; }
   .task-meta { display:flex; gap:4px; margin-top:0px; }
@@ -515,4 +771,7 @@ import TodoFloater from '../../components/TodoFloater.tsx';
   .pos-item:hover { background:var(--accent); }
   .pos-badge { color:#dcb0f5; background:rgba(127,90,240,0.2); padding:8px; border-radius:6px; display:flex; justify-content:space-between; }
   .btn-cancel { background:transparent; border:1px solid var(--border); color:var(--sub); padding:6px 12px; border-radius:6px; cursor:pointer; }
+  .btn-action-small { background:var(--accent); border:none; color:white; padding:0 15px; border-radius:6px; cursor:pointer; font-weight:bold;}
+  .input-group-small { display:flex; gap:5px; }
+  .item-input { background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:6px; border-radius:4px; flex:1; color:white;}
 </style>
